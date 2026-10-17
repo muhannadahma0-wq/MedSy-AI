@@ -162,7 +162,7 @@ export const GET = withMetrics("GET /api/research/overview", async (req: Request
       if (!knownVersions.has(g.modelVersion)) unknownModelVersion += g._count._all;
     }
     const assignedUserIds = new Set(assignments.map((a) => a.userId));
-    const missingArm = doseUserGroups.filter((g) => !assignedUserIds.has(g.userId)).length;
+    const missingArm = doseUserGroups.filter((g) => !g.userId || !assignedUserIds.has(g.userId)).length;
 
     const dataQuality = {
       missingTimestamps: Number(missingTimestampRows[0]?.n ?? 0),
