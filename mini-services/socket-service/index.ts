@@ -30,9 +30,18 @@ import crypto from "crypto";
  * scheduler runs on a separate loopback-only server on port 3004.
  */
 
-const PORT = 3003;
-const EMIT_PORT = 3004;
-const JWT_SECRET = process.env.JWT_SECRET || "medsync-ai-sandbox-secret";
+const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3003);
+const EMIT_PORT = Number(process.env.SOCKET_EMIT_PORT || 3004);
+const EMIT_HOST =
+  process.env.SOCKET_EMIT_HOST ||
+  (process.env.RENDER === "true" ? "0.0.0.0" : "127.0.0.1");
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === "production" ? "" : "medsync-ai-sandbox-secret");
+
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET must be configured for production.");
+}
 
 // P1-53 — environment-controlled CORS. Sandbox default keeps the gateway
 // preview functional; production sets SOCKET_CORS_ORIGINS=https://app.example
@@ -133,7 +142,7 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`MedSync socket service running on port ${PORT}`);
 });
 
@@ -183,7 +192,7 @@ const emitServer = createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "Not found" }));
 });
 
-emitServer.listen(EMIT_PORT, "127.0.0.1", () => {
+emitServer.listen(EMIT_PORT, EMIT_HOST, () => {
   console.log(`Internal emit bridge running on 127.0.0.1:${EMIT_PORT}`);
 });
 
