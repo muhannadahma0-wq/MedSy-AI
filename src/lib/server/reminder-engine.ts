@@ -42,7 +42,8 @@ import {
 // Full authenticated bridge URL; on Render this points to the socket service
 // over the private network rather than to the web app's own loopback interface.
 const SOCKET_EMIT_BRIDGE =
-  process.env.SOCKET_EMIT_URL || "http://127.0.0.1:3004/emit";
+  process.env.SOCKET_EMIT_URL ||
+  `${(process.env.SOCKET_PUBLIC_URL || "http://127.0.0.1:3003").replace(/\/$/, "")}/emit`;
 
 /** Reminder planning horizon (hours ahead). */
 const PLAN_HOURS = 12;
