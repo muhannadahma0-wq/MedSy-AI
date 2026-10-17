@@ -20,6 +20,7 @@
  * where the text must be finalized.
  */
 
+import { createHmac } from "crypto";
 import { db } from "@/lib/db";
 import { parseJson, type DosageTime, type AdherenceRecord, type NotificationMessage } from "./serialize";
 import {
@@ -29,10 +30,12 @@ import {
   getUserTimeZone,
 } from "./tz";
 
-// Internal emit bridge of the socket.io mini-service (loopback, port 3004).
-// The socket endpoint itself is port 3003, but socket.io owns path "/" there,
-// so the HTTP bridge listens separately.
-const SOCKET_SERVICE = "http://127.0.0.1:3004";
+// SOCKET_EMIT_URL is the full authenticated bridge URL, e.g.
+// http://<private-socket-host>:3004/emit on Render. The legacy scheduler
+// uses the service root while the unified engine uses the full URL.
+const SOCKET_EMIT_URL =
+  process.env.SOCKET_EMIT_URL || "http://127.0.0.1:3004/emit";
+const SOCKET_SERVICE = SOCKET_EMIT_URL.replace(/\/emit\/?$/, "");
 
 // Global timer management to prevent duplicate notifications
 const activeTimers = new Map<string, Set<ReturnType<typeof setTimeout>>>();
@@ -418,10 +421,22 @@ async function sendNotification(title: string, body: string, userId: string | nu
   console.log(`[WEBSOCKET NOTIFY] ${title}: ${body}`);
 
   try {
+    const body = JSON.stringify({ userId, notification: notificationData });
+    const secret =
+      process.env.JWT_SECRET ||
+      (process.env.NODE_ENV === "production" ? "" : "medsync-ai-sandbox-secret");
+    if (!secret) {
+      console.warn("JWT_SECRET is missing; notification bridge call was refused.");
+      return;
+    }
+    const signature = createHmac("sha256", secret).update(body).digest("hex");
     await fetch(`${SOCKET_SERVICE}/emit`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, notification: notificationData }),
+      headers: {
+        "Content-Type": "application/json",
+        "x-emit-signature": signature,
+      },
+      body,
     });
   } catch (err) {
     console.warn("Socket.IO mini-service unreachable — notification not pushed:", (err as Error).message);
