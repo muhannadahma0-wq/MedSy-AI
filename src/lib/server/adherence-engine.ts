@@ -145,7 +145,9 @@ export async function getAdherenceSummary(userId: string, windowDays = 30): Prom
     const confirmed = status === "taken" || status === "delayed";
     const isMissed = status === "missed";
 
-    const wd = weekday[DAY_NAMES.indexOf(wallClock(e.scheduledAt, tz).weekday)];
+    const dayLabel = wallClock(e.scheduledAt, tz).weekday;
+    const wdIndex = DAY_NAMES.indexOf(dayLabel as (typeof DAY_NAMES)[number]);
+    const wd = wdIndex >= 0 ? weekday[wdIndex] : undefined;
     if (wd) {
       wd.total++;
       if (confirmed) wd.confirmed++;
