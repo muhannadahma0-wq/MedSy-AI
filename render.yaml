@@ -29,12 +29,12 @@ services:
       - key: SOCKET_PUBLIC_URL
         fromService:
           type: web
-          name: medsya-socket
+          name: medsync-socket
           envVarKey: RENDER_EXTERNAL_URL
       - key: NEXT_PUBLIC_SOCKET_URL
         fromService:
           type: web
-          name: medsya-socket
+          name: medsync-socket
           envVarKey: RENDER_EXTERNAL_URL
       - key: NEXT_PUBLIC_SOCKET_PATH
         value: /socket.io/
@@ -44,7 +44,7 @@ services:
         sync: false
 
   - type: web
-    name: medsya-socket
+    name: medsync-socket
     runtime: node
     plan: free
     region: frankfurt
