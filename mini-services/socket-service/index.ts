@@ -142,6 +142,16 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  // Let Socket.IO's request listener handle its own transport path. This
+  // listener runs before Socket.IO's listener, so answering 404 here would
+  // otherwise break the WebSocket handshake.
+  const socketPathRoot = SOCKET_PATH.replace(/\/+$/, "") || "/";
+  const isSocketRequest =
+    socketPathRoot === "/"
+      ? requestPath === "/"
+      : requestPath === socketPathRoot || requestPath.startsWith(`${socketPathRoot}/`);
+  if (isSocketRequest) return;
+
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: "Not found" }));
 });
