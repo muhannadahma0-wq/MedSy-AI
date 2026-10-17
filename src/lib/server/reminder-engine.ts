@@ -39,11 +39,10 @@ import {
   type NotifLanguage,
 } from "./notifications";
 
-// Full URL of the socket service's internal emit bridge (loopback only).
-// NOTE (Task 13 fix): the previous fetch appended "/emit" to this constant,
-// producing POST /emit/emit → 404, so NO reminder (snooze included) ever
-// reached the socket service. The constant already carries the full path.
-const SOCKET_EMIT_BRIDGE = "http://127.0.0.1:3004/emit";
+// Full authenticated bridge URL; on Render this points to the socket service
+// over the private network rather than to the web app's own loopback interface.
+const SOCKET_EMIT_BRIDGE =
+  process.env.SOCKET_EMIT_URL || "http://127.0.0.1:3004/emit";
 
 /** Reminder planning horizon (hours ahead). */
 const PLAN_HOURS = 12;
@@ -111,9 +110,11 @@ async function emitSocketNotification(
     });
     // MR-19 central fix (2026-10-01): sign the bridge request with the shared
     // JWT_SECRET — the /emit endpoint on :3004 now rejects unsigned calls.
-    const signature = createHmac("sha256", process.env.JWT_SECRET || "medsync-ai-sandbox-secret")
-      .update(body)
-      .digest("hex");
+    const secret =
+      process.env.JWT_SECRET ||
+      (process.env.NODE_ENV === "production" ? "" : "medsync-ai-sandbox-secret");
+    if (!secret) return false;
+    const signature = createHmac("sha256", secret).update(body).digest("hex");
     const res = await fetch(SOCKET_EMIT_BRIDGE, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-emit-signature": signature },
