@@ -1,0 +1,61 @@
+# Render Blueprint for the production preflight branch.
+# The database is a separate Supabase project; this blueprint never reuses Masar Startup.
+envVarGroups:
+  - name: medsya-ai-shared-secrets
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SOCKET_CORS_ORIGINS
+        value: "*"
+
+services:
+  - type: web
+    name: medsya-ai
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: deploy/postgres-preflight
+    buildCommand: npm install --include=dev --no-audit --no-fund && npx prisma generate && npx prisma db push && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/healthz
+    envVars:
+      - fromGroup: medsya-ai-shared-secrets
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SOCKET_PUBLIC_URL
+        fromService:
+          type: web
+          name: medsya-socket
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          type: web
+          name: medsya-socket
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_SOCKET_PATH
+        value: /socket.io/
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+
+  - type: web
+    name: medsya-socket
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: deploy/postgres-preflight
+    rootDir: mini-services/socket-service
+    buildCommand: npm install --include=dev --no-audit --no-fund
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: medsya-ai-shared-secrets
+      - key: NODE_ENV
+        value: production
+      - key: SOCKET_PATH
+        value: /socket.io/
