@@ -105,3 +105,42 @@ export function errorMessage(
   if (fallback && fallback.trim().length > 0) return fallback;
   return GENERIC_FALLBACK[target];
 }
+
+// Compatibility exports used by the older dashboard modules. The newer
+// authenticated app uses errorMessage(); keep these aliases while the old
+// UI is being consolidated.
+export type Locale = ErrorMessageLang;
+export type Dict = Record<string, string>;
+
+const UI_COPY: Record<Locale, Record<string, string>> = {
+  en: {
+    riskLow: "Low risk",
+    riskMedium: "Medium risk",
+    riskHigh: "High risk",
+    todayGreetingMorning: "Good morning",
+    todayGreetingAfternoon: "Good afternoon",
+    todayGreetingEvening: "Good evening",
+  },
+  ar: {
+    riskLow: "مخاطر منخفضة",
+    riskMedium: "مخاطر متوسطة",
+    riskHigh: "مخاطر مرتفعة",
+    todayGreetingMorning: "صباح الخير",
+    todayGreetingAfternoon: "مساء الخير",
+    todayGreetingEvening: "مساء الخير",
+  },
+};
+
+/** Translation fallback for older UI code; unknown keys remain readable. */
+export function translate(
+  locale: Locale,
+  key: string,
+  vars: Record<string, string | number> = {}
+): string {
+  let value = UI_COPY[locale]?.[key] ?? key;
+  for (const [name, replacement] of Object.entries(vars)) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
+
