@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Ported from server/src/models/User.js (Mongoose)
@@ -43,39 +44,58 @@ model User {
 // dosageTimes and adherenceHistory are object arrays → stored as JSON.
 model Medication {
   id                   String    @id @default(cuid())
-  userId               String
-  pillName             String
+  // Current authenticated API data model
+  userId               String?
+  pillName             String    @default("")
   pillDescription      String?
-  dosageDays           Json? // ["Monday","Tuesday"]
-  dosageTimes          Json? // [{time, remindBefore, remindAfter, status, takenAt, lastReminderSentAt}]
-  dosageAmount         String? // e.g. "500mg"
-  frequency            String? // e.g. "2 times a day"
-  startDate            DateTime
-  endDate              DateTime?
+  dosageDays           Json?
+  dosageTimes          Json?
+  dosageAmount         String?
+  frequency            String?
+  startDate            DateTime  @default(now())
+  endDate               DateTime?
   originalInstructions String?
-  translatedAr         String? // Arabic (MSA) translation of the instructions
-  adherenceHistory     Json? // [{date, time, status, takenAt}]
+  translatedAr         String?
+  adherenceHistory     Json?
   doctorName           String?
   prescriptionId       String?
   notes                String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
+  // Backward-compatible fields still consumed by the legacy SPA routes.
+  name           String  @default("")
+  nameAr         String?
+  dosage         String?
+  form           String  @default("tablet")
+  times          String  @default("[]")
+  days           String  @default("[]")
+  instructions   String?
+  instructionsAr String?
+  color          String  @default("teal")
+  active         Boolean @default(true)
+
+  doseEvents DoseEvent[]
+
   @@index([userId])
 }
 
 // Ported from server/src/models/ReportModel.js (Mongoose)
 model Report {
-  id                String   @id @default(cuid())
-  userId            String
-  filename          String
-  reportText        String
-  analysis          String
-  translatedAnalysis Json? // { ar: "..." }
-  originalLanguage  String   @default("en")
-  readabilityScore  Json? // { fleschKincaid, fleschReadingEase, readingLevel, ... }
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String?
+  filename           String   @default("")
+  reportText         String   @default("")
+  analysis           String
+  translatedAnalysis Json?
+  originalLanguage   String   @default("en")
+  readabilityScore   Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Legacy report UI fields, retained until all callers use the authenticated API.
+  title   String @default("")
+  content String @default("")
 
   @@index([userId])
 }
@@ -182,18 +202,20 @@ model HealthProfile {
 // source of truth for analytics and ML.
 model DoseEvent {
   id           String    @id @default(cuid())
-  userId       String
+  userId       String?
   medicationId String
-  scheduledAt  DateTime // exact planned moment (date + HH:MM slot)
-  actualAt     DateTime? // confirmation time when taken/delayed
-  status       String    @default("pending") // pending | taken | delayed | missed | skipped
-  delayMinutes Int? // actualAt − scheduledAt, positive = late
-  skipReason    String? // forgot | not_needed | doctor | side_effects | other (Section 12 — behavioral signal, not a medical decision)
-  riskScore    Float? // predicted "not confirmed on time" risk [0,1] while pending
-  riskLevel    String? // low | medium | high
-  modelVersion String? // model that produced riskScore, e.g. "lr-v1"
-  source       String    @default("scheduler") // scheduler | migration | manual
-  slotTime     String // "08:00" — original time-of-day slot
+  medication   Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  scheduledAt  DateTime
+  actualAt     DateTime?
+  respondedAt  DateTime? // legacy SPA equivalent of actualAt
+  status       String    @default("pending")
+  delayMinutes Int?
+  skipReason   String?
+  riskScore    Float?
+  riskLevel    String?
+  modelVersion String?
+  source       String    @default("scheduler")
+  slotTime     String    @default("")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
