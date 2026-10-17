@@ -15,7 +15,7 @@ Medication → Dose Schedule → Dose Event → User Behavior → ML Risk Predic
 |---|---|---|
 | RQ1 | Can per-dose behaviour be predicted from history? | `lib/server/ml/*` — temporal split, ROC-AUC/PR-AUC/Brier/calibration; promotion only on evidence |
 | RQ2 | Do risk-adaptive reminders reduce unconfirmed doses? | SmartReminder ledger (shadow → live A/B ready), EXTRA escalation for high-risk doses |
-| RQ3 | Is the platform reliable? | Idempotent DB-backed engine, boot recovery, bug-register discipline (register archived in worklog.md) |
+| RQ3 | Is the platform reliable? | Idempotent DB-backed engine, boot recovery, bug-register discipline |
 | RQ4 | Bilingual UI (EN/AR)? | Intelligence page fully bilingual incl. per-feature explanations |
 
 ## Data foundation (MEDSYNC-002/003)
@@ -113,7 +113,7 @@ mobile-verified (390 px, zero overflow).
 - Predictions always carry the exact feature vector they were made from.
 - Model promotion requires temporal-test evidence; ties keep the simpler model.
 - Shadow mode is the default; nothing reaches the user without `live`.
-- Demo/test data pollution is tracked in the bug register (worklog.md) and cleaned, never
+- Demo/test data pollution is tracked in the bug register and cleaned, never
   silently mixed into evaluation numbers.
 
 ---
@@ -159,8 +159,8 @@ model highlighted. Tree ensembles explain via **global feature importance**
   `GET /api/readyz` (db SELECT 1, ML registry, DoseEvent store; 503 on fail),
   `GET /api/metrics` (per-route p50/p95/p99 + errors — route names and
   milliseconds only, never sensitive data).
-- Research-core routes instrumented via `withMetrics()`; measured numbers in
-  `the archived performance report (worklog.md)`.
+- Research-core routes instrumented via `withMetrics()`; measured numbers are
+  available from the in-memory latency recorder (`/api/ai-monitoring`).
 
 ## New/changed files (stage 3)
 

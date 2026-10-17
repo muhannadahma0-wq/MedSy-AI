@@ -6,8 +6,7 @@
 > The upstream MERN repo's fixes were re-audited against THIS codebase —
 > several had regressed during the port and are fixed here.
 >
-> **UPDATE 2026-10-01 (Master Review 100 — full re-audit by 20 review agents,
-> docs/MASTER_REVIEW_100.md — archived 2026-10-17, record kept in FULL_RECORD.md):** (1) `JWT_SECRET` is now a real random value in
+> **UPDATE 2026-10-01 (Master Review 100 — full re-audit by 20 review agents):** (1) `JWT_SECRET` is now a real random value in
 > `.env` (was the documented sandbox fallback constant); (2) six remaining
 > `getAuthUser` routes (preferences ×2, check-interactions, calendar ×2,
 > health) upgraded to `requireSelf` — account-state + tokenVersion now

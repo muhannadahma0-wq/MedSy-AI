@@ -25,7 +25,7 @@
    future work; no offline claims are made for this version.
 5. **Unit/integration test suites (§41)**: this environment does not include
    a test runner setup; verification is performed through scripted API
-   checks and browser E2E (recorded in worklog). Formal test code remains
+   checks and browser E2E. Formal test code remains
    to be added when the project moves to its final repository.
 6. **FHIR (§46)**: intentionally deferred by the plan itself until after
    P0/P1 — not started.
@@ -55,7 +55,7 @@
 - Next.js dev-overlay flags HMR WebSocket timeouts as "issues" — dev-server
   artefact, not an application error.
 - The in-memory latency recorder resets on restart and does not cover
-  non-instrumented routes (by design; archived PERFORMANCE_REPORT (worklog.md)).
+  non-instrumented routes (by design).
 - Skip is exposed only for doses with a pending DoseEvent for today; legacy
   JSON-only slots (no materialized event) show a graceful error toast.
 
@@ -106,5 +106,4 @@
   root font-size; a few fixed-px decorative elements do not scale. WCAG
   audit and a high-contrast mode remain future work.
 - **Latency metrics (Phase 15)**: small sequential samples (n = 2–7) on a
-  dev server — order-of-magnitude readings, not tail-latency claims (see
-  the archived performance report (worklog.md)).
+  dev server — order-of-magnitude readings, not tail-latency claims).
