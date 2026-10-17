@@ -1,6 +1,7 @@
 /**
  * GET/POST /api/health — port of routes/healthRoutes.js (HealthProfile CRUD).
  */
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { json, readJson } from "@/lib/server/http";
 // MR-1 central fix (2026-10-01): getAuthUser → requireSelf (state + tokenVersion)
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
       medicalConditions: JSON.stringify(body.medicalConditions ?? []),
       allergies: JSON.stringify(body.allergies ?? []),
       medications: JSON.stringify(body.medications ?? []),
-      emergencyContact: body.emergencyContact ? JSON.stringify(body.emergencyContact) : null,
+      emergencyContact: body.emergencyContact ? JSON.stringify(body.emergencyContact) : Prisma.DbNull,
       lastCheckup: body.lastCheckup ? new Date(body.lastCheckup as string) : null,
     };
 
