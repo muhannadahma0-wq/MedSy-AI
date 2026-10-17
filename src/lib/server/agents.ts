@@ -106,7 +106,7 @@ interface PastConversation {
 
 async function loadPastData(userId: string, model: AgentModel) {
   const pastData: PastConversation[] = await db.conversation.findMany({
-    where: { user: userId },
+    where: { userId },
     orderBy: { createdAt: "desc" },
     take: 2,
   });
@@ -185,7 +185,23 @@ export async function runAgent(
     const summary = pastData[0]?.summary || "No summary available";
     try {
       await db.conversation.create({
-        data: { summary, input, output, model, user: user.id },
+        data: {
+          userId: user.id,
+          agent: model,
+          title: input.slice(0, 120),
+          messages: JSON.stringify([
+            { role: "user", content: input, at: new Date().toISOString() },
+            { role: "assistant", content: output, at: new Date().toISOString() },
+          ]),
+          summary,
+          input,
+          output,
+          model,
+          language,
+          messageCount: 2,
+          modelVersion: model,
+          provider: "zai",
+        },
       });
     } catch (err) {
       console.error("Error saving conversation:", err);
