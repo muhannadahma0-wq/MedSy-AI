@@ -1,45 +1,36 @@
-# MedSync-AI deployment (Supabase + Render)
+# MedSync-AI deployment: Supabase + Render
 
-This deployment configuration lives on the review branch `deploy/postgres-preflight`. The `main` branch is left unchanged until the PostgreSQL migration and CI checks are reviewed.
+## Current status
 
-## Architecture
+This setup lives on the review branch `deploy/postgres-preflight`; `main` has not been modified.
 
-- **Web app / API:** Next.js on Render.
-- **Database:** a dedicated Supabase PostgreSQL project named `medsync-ai`.
-- **Live notifications:** a second Render Web Service running Socket.IO. The browser uses `/socket.io/`; signed server notifications use the same service's `/emit` HTTP endpoint.
-- **Shared secret:** Render generates one `JWT_SECRET` in the `medsync-ai-shared-secrets` environment group for both services.
+- **GitHub branch:** [deploy/postgres-preflight](https://github.com/muhannadahma0-wq/MedSy-AI/tree/deploy/postgres-preflight)
+- **Supabase project:** `medsync-ai` (`wyaxwyucknjbghaqppls`), region `eu-central-1`
+- **Render web app:** [medsync-ai-8wq3.onrender.com](https://medsync-ai-8wq3.onrender.com)
+- **Render Socket.IO service:** [medsync-socket.onrender.com](https://medsync-socket.onrender.com)
 
-Do not point MedSync-AI at the existing `masar-startup` Supabase project.
+The Supabase project is separate from the existing `masar-startup` project. Fourteen Prisma tables have been created and verified in the new database. The SQL used is committed at `supabase/migrations/20261017164917_initial_medsync_ai_schema.sql`. Row-level security is enabled on all 14 tables, and direct table privileges are revoked from Supabase's `anon` and `authenticated` API roles. The app uses server-side Prisma.
 
-## 1. Prepare Supabase
+The Socket.IO service has built and gone live on Render. The Next.js service is being deployed from this branch. **Database access is not complete yet:** the Render app's `DATABASE_URL` and `DIRECT_URL` variables currently contain safe local placeholders and must be replaced with the new Supabase connection string.
 
-1. Create a separate Supabase project named `medsync-ai` in `eu-central-1`.
-2. In the new project's **Connect** dialog, select the **Session pooler** connection string using port `5432`. Use it for both `DATABASE_URL` and `DIRECT_URL` on Render. This avoids depending on the direct database connection being reachable from an IPv4-only host.
-3. Keep the database password in the provider's secret manager / Render environment, never in GitHub, `.env.example`, or chat messages.
+## Required final step: set Supabase connection strings in Render
 
-The schema has been converted from SQLite to PostgreSQL, with compatibility fields retained for legacy UI routes while the authenticated routes continue to use the current field names.
+1. Open the [Supabase project dashboard](https://supabase.com/dashboard/project/wyaxwyucknjbghaqppls).
+2. Click **Connect** and select **Session pooler**. Render's free web services are IPv4-only, so the shared session pooler is the appropriate endpoint. Copy the connection string shown there; do not compose the pooler host or username by hand.
+3. Open the [Render web service environment settings](https://dashboard.render.com/web/srv-db9qebcs728c73clk840).
+4. Replace both `DATABASE_URL` and `DIRECT_URL` with that copied Session Pooler connection string. Replace only the password placeholder with the database password and URL-encode special characters in the password if required. Do not paste the password into GitHub or this chat.
+5. Save the environment changes and let Render redeploy the web service.
+6. Once the deploy is live, test:
+   - `https://medsync-ai-8wq3.onrender.com/api/healthz` — process liveness
+   - `https://medsync-ai-8wq3.onrender.com/api/readyz` — database and application readiness; it should return `"status":"ready"`
+   - `https://medsync-socket.onrender.com/health` — Socket.IO service health
 
-## 2. Deploy the Render Blueprint
+Because the schema migration was already applied directly to the new Supabase project, the currently deployed Render build command does **not** run `prisma db push`. Keep secrets in Render's environment settings.
 
-1. Open Render's **New + → Blueprint** flow and select this repository, branch `deploy/postgres-preflight`, and `render.yaml`.
-2. Before applying, set the requested `DATABASE_URL` and `DIRECT_URL` values to the Supabase Session pooler string. Add `GROQ_API_KEY` and/or `GOOGLE_API_KEY` only if you have them.
-3. Review the two Web Services: `medsync-ai` and `medsync-socket`. The Blueprint marks both as free-plan resources; check Render's current dashboard for any usage or plan changes before applying.
-4. The first web-service build runs `prisma generate`, a non-destructive `prisma db push`, then the Next.js build. The push is intended for the new, empty Supabase database. Do not use `--accept-data-loss`.
-5. After both services are live, open `https://<medsync-ai-service>/api/healthz` and `https://<medsync-socket-service>/health`. The web app's `/api/readyz` should also report the database and dose-event tables as ready.
+## Environment and safety notes
 
-## 3. Secrets and CORS
-
-- Never set `JWT_SECRET` to a fixed or sample value. Render's environment group generates one shared value.
-- The initial Blueprint leaves `SOCKET_CORS_ORIGINS=*` so the first service URLs can be discovered. After the web app is live, change this shared environment variable to the exact public HTTPS origin of the web app (no trailing slash), then redeploy the Socket.IO service.
-- Configure OAuth and AI-provider credentials separately if the corresponding features are required. Do not paste live secrets into public GitHub files.
-
-## 4. Build and smoke tests
-
-The GitHub Actions workflow `.github/workflows/deploy-preflight.yml` validates the Prisma schema, generates the Prisma Client, type-checks and builds the Next.js app, and smoke-tests the Socket.IO health endpoint plus the HMAC-protected `/emit` route.
-
-## Important limitations
-
-- This is a deployment preflight branch, not a claim that the application is medically validated or ready for real patient data.
-- The demo seed endpoint and several legacy unscoped endpoints are disabled in production to prevent accidental data deletion or cross-user access.
-- The project currently uses `prisma db push` to bootstrap the new database. Before making breaking schema changes or treating this as a long-lived production system, introduce reviewed, versioned Prisma migrations and test them against a non-production database.
-- Review the TypeScript/build checks and run functional tests for sign-up/login, medication CRUD, dose updates, report saving, Socket.IO authentication, and notification delivery before merging this branch into `main`.
+- Render created a random shared `JWT_SECRET` for the Next.js API and Socket.IO service. Do not replace it with a sample string. Rotating it later signs out existing tokens and requires updating both services together.
+- Socket.IO CORS is restricted to the web app origin `https://medsync-ai-8wq3.onrender.com`.
+- `GROQ_API_KEY` and `GOOGLE_API_KEY` have not been configured; features depending on these providers may need additional provider credentials.
+- The deployment is a testing/staging deployment, not medically validated software. Do not enter real patient data until the app's authorization, operational monitoring, backups, and clinical validation have been reviewed.
+- The GitHub CI build passed on commit `872db86271c3a2d09539e6f2d57ba1948f5a44c3`, including Prisma schema validation, Prisma Client generation, Next.js production build and Socket.IO signed-bridge smoke tests. The subsequent commit mainly changed Render configuration and migration documentation.
