@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
+import { requireSelf } from "@/lib/server/jwt";
 import { detectEmergency, findInteractions, INTERACTION_TABLE, normalizeDrug } from "@/lib/medical";
 import type { AssistantApiResponse, ChatCitation } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
@@ -42,6 +43,9 @@ function localizedEmergencyBody(locale: Locale): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSelf(req);
+    if (guard instanceof Response) return guard;
+
     const body = (await req.json()) as {
       messages?: HistoryMessage[];
       agent?: Agent;
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- personal context from the demo profile ----
-    const meds = await db.medication.findMany({ where: { active: true } });
+    const meds = await db.medication.findMany({ where: { userId: guard.id, active: true } });
     const medLines = meds
       .map((m) => `- ${m.name}${m.nameAr ? ` (${m.nameAr})` : ""}${m.dosage ? `, ${m.dosage}` : ""} — schedule: ${m.times} on days ${m.days}`)
       .join("\n");
