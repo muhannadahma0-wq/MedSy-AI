@@ -25,16 +25,14 @@ import crypto from "crypto";
  *    in the handshake auth payload, not cookies); production must set real
  *    origins.
  *
- * Because socket.io owns path "/" on port 3003 (required by the Caddy
- * gateway), the internal /emit HTTP bridge used by the Next.js notification
- * scheduler runs on a separate loopback-only server on port 3004.
+ * In production Socket.IO uses its standard /socket.io/ path and shares the
+ * Render-assigned HTTP port with the HMAC-protected /emit endpoint. This keeps
+ * WebSocket traffic and server-to-server notification delivery on one service
+ * and one public port. Local sandbox mode can still set SOCKET_PATH="/".
  */
 
 const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3003);
-const EMIT_PORT = Number(process.env.SOCKET_EMIT_PORT || 3004);
-const EMIT_HOST =
-  process.env.SOCKET_EMIT_HOST ||
-  (process.env.RENDER === "true" ? "0.0.0.0" : "127.0.0.1");
+const SOCKET_PATH = process.env.SOCKET_PATH || "/socket.io/";
 const JWT_SECRET =
   process.env.JWT_SECRET ||
   (process.env.NODE_ENV === "production" ? "" : "medsync-ai-sandbox-secret");
@@ -79,10 +77,76 @@ function verifyToken(token: string): { id: string } | null {
   }
 }
 
-const httpServer = createServer();
+const httpServer = createServer(async (req, res) => {
+  const requestPath = req.url?.split("?")[0] || "";
+
+  if (req.method === "POST" && requestPath === "/emit") {
+    // Bound memory use; this endpoint accepts compact notification payloads only.
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    for await (const chunk of req) {
+      const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += part.length;
+      if (totalBytes > 1_048_576) {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "payload too large" }));
+        return;
+      }
+      chunks.push(part);
+    }
+    const raw = Buffer.concat(chunks).toString("utf8");
+    const expected = crypto.createHmac("sha256", JWT_SECRET).update(raw).digest("hex");
+    const provided = String(req.headers["x-emit-signature"] || "");
+    const a = Buffer.from(provided);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "bad signature" }));
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as {
+        userId?: string | null;
+        notification?: { title?: string; message?: string; [key: string]: unknown };
+      };
+      if (
+        (parsed.userId !== null && parsed.userId !== undefined && typeof parsed.userId !== "string") ||
+        !parsed.notification ||
+        typeof parsed.notification !== "object" ||
+        typeof parsed.notification.title !== "string" ||
+        typeof parsed.notification.message !== "string"
+      ) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "invalid payload" }));
+        return;
+      }
+      if (parsed.userId) {
+        io.to(`user-${parsed.userId}`).emit("notification", parsed.notification);
+        console.log(`Notification sent to user ${parsed.userId}: ${parsed.notification.title}`);
+      } else {
+        io.emit("notification", parsed.notification);
+        console.log(`Notification sent to all clients: ${parsed.notification.title}`);
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "invalid JSON" }));
+    }
+    return;
+  }
+
+  if (req.method === "GET" && requestPath === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Not found" }));
+});
 const io = new Server(httpServer, {
-  // DO NOT change the path, it is used by Caddy to forward the request to the correct port
-  path: "/",
+  path: SOCKET_PATH,
   cors: {
     origin: corsOrigins.length === 1 && corsOrigins[0] === "*" ? "*" : corsOrigins,
     methods: ["GET", "POST"],
@@ -146,61 +210,9 @@ httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`MedSync socket service running on port ${PORT}`);
 });
 
-// ── Internal /emit bridge (port 3004, loopback only) ───────────────────────
-const emitServer = createServer(async (req, res) => {
-  const url = req.url?.split("?")[0] || "";
-  if (req.method === "POST" && url === "/emit") {
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
-    // MR-19 central fix (2026-10-01): the /emit bridge now requires an
-    // HMAC-SHA256 signature over the raw body (shared JWT_SECRET, header
-    // "x-emit-signature", timing-safe compare). Loopback binding alone let
-    // ANY local process push notifications to every connected client.
-    const expected = crypto.createHmac("sha256", JWT_SECRET).update(raw).digest("hex");
-    const provided = String(req.headers["x-emit-signature"] || "");
-    const a = Buffer.from(provided);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "bad signature" }));
-      return;
-    }
-    try {
-      const { userId, notification } = JSON.parse(raw);
-      if (userId) {
-        io.to(`user-${userId}`).emit("notification", notification);
-        console.log(`Notification sent to user ${userId}: ${notification?.title}`);
-      } else {
-        io.emit("notification", notification);
-        console.log(`Notification sent to all clients: ${notification?.title}`);
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: true }));
-    } catch (err) {
-      console.error("Emit error:", err);
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false }));
-    }
-    return;
-  }
-  if (req.method === "GET" && url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true, clients: io.engine.clientsCount }));
-    return;
-  }
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "Not found" }));
-});
-
-emitServer.listen(EMIT_PORT, EMIT_HOST, () => {
-  console.log(`Internal emit bridge running on 127.0.0.1:${EMIT_PORT}`);
-});
-
-process.on("SIGTERM", () => {
-  httpServer.close(() => process.exit(0));
-  emitServer.close(() => process.exit(0));
-});
-process.on("SIGINT", () => {
-  httpServer.close(() => process.exit(0));
-  emitServer.close(() => process.exit(0));
-});
+// The HTTP /emit endpoint and Socket.IO share the same Render web port.
+const shutdown = () => {
+  io.close(() => process.exit(0));
+};
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);
