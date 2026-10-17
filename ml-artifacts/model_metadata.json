@@ -1,0 +1,84 @@
+{
+  "schema": "medsync-model-metadata/1",
+  "generatedAt": "2026-09-29T10:28:44.463Z",
+  "datasetType": "real-user-demo",
+  "lowData": false,
+  "dataset": {
+    "users": 15,
+    "resolvedEvents": 1082,
+    "positives": 582,
+    "prevalence": 0.5379,
+    "trainRows": 757,
+    "testRows": 325,
+    "split": "temporal",
+    "trainUntil": "2026-09-21T07:30:00.000Z"
+  },
+  "featureNames": [
+    "hour",
+    "isEvening",
+    "isWeekend",
+    "dosesPerDay",
+    "medicationCount",
+    "adherenceRate7d",
+    "missedLast7d",
+    "streak",
+    "avgDelay7d",
+    "slotMissStreak",
+    "medAgeDays",
+    "dosesTodaySoFar"
+  ],
+  "labelDefinition": "1 = dose not confirmed on time (delayed or missed)",
+  "validation": "temporal (chronological 70/30 split — never random)",
+  "promoted": {
+    "modelType": "logistic-regression",
+    "version": "lr-v20260929102844",
+    "reason": "Promoted logistic-regression (lr-v20260929102844): temporal test ROC-AUC 0.6926 ≥ baseline 0.6217 (Brier 0.2165 vs 0.2483; PR-AUC 0.7697 vs 0.6480)."
+  },
+  "candidates": [
+    {
+      "modelType": "baseline",
+      "version": "baseline-v1",
+      "metrics": {
+        "rocAuc": 0.6217,
+        "prAuc": 0.648,
+        "brier": 0.2483,
+        "logLoss": 0.7325,
+        "n": 325
+      }
+    },
+    {
+      "modelType": "logistic-regression",
+      "version": "lr-v20260929102844",
+      "metrics": {
+        "rocAuc": 0.6926,
+        "prAuc": 0.7697,
+        "brier": 0.2165,
+        "logLoss": 0.6294,
+        "n": 325
+      }
+    },
+    {
+      "modelType": "gradient-boosting",
+      "version": "gb-v20260929102844",
+      "metrics": {
+        "rocAuc": 0.6378,
+        "prAuc": 0.6871,
+        "brier": 0.2269,
+        "logLoss": 0.6461,
+        "n": 325
+      }
+    },
+    {
+      "modelType": "random-forest",
+      "version": "rf-v20260929102844",
+      "metrics": {
+        "rocAuc": 0.5821,
+        "prAuc": 0.62,
+        "brier": 0.2358,
+        "logLoss": 0.6638,
+        "n": 325
+      }
+    }
+  ],
+  "honestyNote": "Metrics come from the demo cohort's real app usage, not a clinical trial. Never present these numbers as clinical evidence (plan §18)."
+}

@@ -1,0 +1,305 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Ported from server/src/models/User.js (Mongoose)
+model User {
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  password          String? // hash; null for Google-only accounts
+  googleId          String?   @unique
+  googleTokens      Json? // { access_token, refresh_token, expiry_date }
+  timeZone          String    @default("UTC")
+  lastCalendarSync  DateTime?
+  calendarSyncEnabled Boolean @default(false)
+  isVerified        Boolean   @default(false)
+  // MASTER AUDIT P0-07 — account state checked on EVERY authenticated
+  // request (requireSelf): active | disabled | suspended | deleted.
+  status            String    @default("active")
+  // MASTER AUDIT P0-08 — session versioning: bumping this value invalidates
+  // every previously issued JWT for the user (password change, security
+  // event, logout-all-devices, admin disable) without waiting for expiry.
+  tokenVersion      Int       @default(0)
+  otpCode           String?
+  otpExpiresAt      DateTime?
+  otpRetryCount     Int       @default(0)
+  otpResendAt       DateTime? // MASTER AUDIT P0-13 — resend-otp cooldown
+  backupCodes       Json? // sha256 hashes (P0-12) — plaintext shown ONCE at generation
+  preferredLanguage String? // en | ar
+  autoTranslateAll  Boolean?
+  showReadabilityScores Boolean?
+  targetReadingLevel String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Ported from server/src/models/medicineModel.js (Mongoose)
+// dosageTimes and adherenceHistory are object arrays → stored as JSON.
+model Medication {
+  id                   String    @id @default(cuid())
+  userId               String
+  pillName             String
+  pillDescription      String?
+  dosageDays           Json? // ["Monday","Tuesday"]
+  dosageTimes          Json? // [{time, remindBefore, remindAfter, status, takenAt, lastReminderSentAt}]
+  dosageAmount         String? // e.g. "500mg"
+  frequency            String? // e.g. "2 times a day"
+  startDate            DateTime
+  endDate              DateTime?
+  originalInstructions String?
+  translatedAr         String? // Arabic (MSA) translation of the instructions
+  adherenceHistory     Json? // [{date, time, status, takenAt}]
+  doctorName           String?
+  prescriptionId       String?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// Ported from server/src/models/ReportModel.js (Mongoose)
+model Report {
+  id                String   @id @default(cuid())
+  userId            String
+  filename          String
+  reportText        String
+  analysis          String
+  translatedAnalysis Json? // { ar: "..." }
+  originalLanguage  String   @default("en")
+  readabilityScore  Json? // { fleschKincaid, fleschReadingEase, readingLevel, ... }
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Ported from server/src/models/ConversationModel.js (Mongoose)
+// Conversation 2.0 (v5 review items 13-15) — DB-backed, per-user + per-agent
+// + per-conversation memory. Replaces the old single-row request log and the
+// in-process Map<userId, ConversationSummaryMemory>: history now survives
+// restarts, is isolated by (userId, agent, conversationId), and is auditable.
+// AiLog remains the data-minimized request audit; this table is the
+// user-visible conversation thread.
+model Conversation {
+  id             String   @id @default(cuid()) // conversationId
+  userId         String
+  agent          String // medical | medicine | personal-health | emergency
+  title          String   @default("") // excerpt of the first user message
+  messages       String   @default("[]") // JSON [{ role: user|assistant, content, at, agent? }]
+  summary        String   @default("") // rolling summary for long threads
+  language       String   @default("en") // ar | en
+  messageCount   Int      @default(0)
+  promptVersion  String   @default("")
+  modelVersion   String   @default("")
+  provider       String   @default("")
+  active         Boolean  @default(true) // soft archive (delete = active:false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, agent, active])
+  @@index([userId, updatedAt])
+}
+
+// AI Feedback loop (v5 review item 38 / addition H) — helpful / unhelpful /
+// unsafe ratings on agent answers. "unsafe" ratings feed the AI quality
+// dataset (aggregated in /api/ai-monitoring) without storing any additional
+// personal information.
+model AiFeedback {
+  id             String   @id @default(cuid())
+  userId         String
+  agent          String // medical | medicine | personal-health | emergency | router
+  rating         String // helpful | unhelpful | unsafe
+  comment        String   @default("")
+  aiLogId        String? // link to the gateway audit row when available
+  conversationId String? // link to the Conversation 2.0 thread
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([agent, rating, createdAt])
+}
+
+// Research consent (v5 review item 42 / addition I) — in-app study consent
+// with version + timestamp + revocation, so participation is tied to the
+// system itself instead of an environment variable.
+model StudyConsent {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  version   String // consent document version (STUDY_CONSENT_VERSION)
+  grantedAt DateTime  @default(now())
+  revokedAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// Ported from server/src/models/todayNotifications.js (Mongoose)
+model DailyNotification {
+  id            String   @id @default(cuid())
+  userId        String
+  date          String // "YYYY-MM-DD"
+  dayName       String?
+  notifications Json? // [{title, message, type, medicineId, medicineName, time}]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+// Ported from server/src/models/HealthProfile.js (Mongoose)
+model HealthProfile {
+  id                String    @id @default(cuid())
+  user              String    @unique
+  age               Int?
+  gender            String?
+  height            Float?
+  weight            Float?
+  bloodGroup        String?
+  medicalConditions Json?
+  allergies         Json?
+  medications       Json?
+  emergencyContact  Json? // { name, phone }
+  lastCheckup       DateTime?
+  createdAt         DateTime  @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MEDSYNC-002 — Intelligent Medication Adherence Platform data foundation.
+// Pipeline: Medication → DoseEvent → (ML risk) → SmartReminder → outcome → analytics.
+// JSON payloads are stored as String columns (explicit stringify/parse) to stay
+// robust on SQLite.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One row = one scheduled dose occurrence. Materialized from Medication.dosageTimes
+// by the scheduler, backfilled from adherenceHistory by the migration, and updated
+// when the user confirms a dose. Replaces JSON-blob adherence tracking as the
+// source of truth for analytics and ML.
+model DoseEvent {
+  id           String    @id @default(cuid())
+  userId       String
+  medicationId String
+  scheduledAt  DateTime // exact planned moment (date + HH:MM slot)
+  actualAt     DateTime? // confirmation time when taken/delayed
+  status       String    @default("pending") // pending | taken | delayed | missed | skipped
+  delayMinutes Int? // actualAt − scheduledAt, positive = late
+  skipReason    String? // forgot | not_needed | doctor | side_effects | other (Section 12 — behavioral signal, not a medical decision)
+  riskScore    Float? // predicted "not confirmed on time" risk [0,1] while pending
+  riskLevel    String? // low | medium | high
+  modelVersion String? // model that produced riskScore, e.g. "lr-v1"
+  source       String    @default("scheduler") // scheduler | migration | manual
+  slotTime     String // "08:00" — original time-of-day slot
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([medicationId, scheduledAt])
+  @@index([userId, scheduledAt])
+  @@index([userId, status])
+}
+
+// Unified, restart-safe reminder ledger. The engine upserts rows idempotently
+// (unique doseEventId+type+scheduledAt) — a restart simply resumes the tick loop.
+// mode = "shadow" logs the risk-aware decision without delivering; "live" delivers
+// through the socket.io bridge + DailyNotification.
+model SmartReminder {
+  id          String    @id @default(cuid())
+  userId      String
+  doseEventId String
+  type        String // before | onTime | after | extra (high-risk escalation) | snooze (user-requested, Section 11)
+  scheduledAt DateTime // when this reminder is due
+  sentAt      DateTime?
+  status      String    @default("logged") // logged | sent | skipped
+  mode        String    @default("shadow") // shadow | live
+  riskScore   Float?
+  riskLevel   String?
+  payload     String? // JSON { title, message, reason }
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([doseEventId, type, scheduledAt])
+  @@index([userId, scheduledAt])
+  @@index([status, scheduledAt])
+}
+
+// Every risk score is persisted with its exact feature vector and an honest,
+// per-feature contribution explanation (no fabricated reasons).
+model RiskPrediction {
+  id           String   @id @default(cuid())
+  userId       String
+  doseEventId  String
+  modelVersion String
+  riskScore    Float
+  riskLevel    String
+  features     String? // JSON { featureName: value }
+  explanation  String? // JSON [{ feature, value, contribution, labelEn, labelAr }]
+  mode         String   @default("shadow")
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([doseEventId, createdAt])
+}
+
+// Controlled-study arm assignment (plan Sections 27–32). Control = normal
+// reminders + ML scoring, never EXTRA. Smart = + EXTRA for predicted
+// high-risk doses. Assignment is balanced and persisted; the researcher can
+// re-assign via the operator endpoint during pilot setup only.
+model StudyAssignment {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  arm        String // control | smart
+  reason     String? // auto-balanced | operator
+  assignedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// Serialized, versioned model registry. Training uses a temporal split and
+// records ROC-AUC, PR-AUC, Brier and calibration so "Accuracy" is never the
+// only reported metric.
+model ModelArtifact {
+  id        String   @id @default(cuid())
+  modelType String // baseline | logistic-regression | random-forest | gradient-boosting
+  version   String
+  weights   String? // JSON serialized parameters (+ scaler)
+  metrics   String? // JSON { rocAuc, prAuc, brier, calibration, ... }
+  trainRows Int?
+  testRows  Int?
+  isActive  Boolean  @default(false)
+  trainedAt DateTime @default(now())
+
+  @@unique([modelType, version])
+  @@index([modelType, isActive])
+}
+
+// AI Gateway audit log (spec §35 — data minimization by design: the full
+// medical text is NOT stored; only a short input preview + answer length).
+// One row per agent request through the gateway (router, direct specialists
+// and the vision pipeline alike).
+model AiLog {
+  id           String   @id @default(cuid())
+  requestId    String
+  user         String? // owning user id (verified caller)
+  agent        String // router | medical | medicine | personal-health | emergency | vision-medication | vision-report
+  provider     String // groq | gemini | zai-glm
+  model        String
+  intent       String? // MEDICAL_KNOWLEDGE | MEDICATION | PERSONAL_HEALTH | EMERGENCY | UNKNOWN | IMAGE_MEDICATION | IMAGE_REPORT
+  severity     String? // emergency tier (emergency agent only)
+  fallbackUsed Boolean  @default(false)
+  handoff      Boolean  @default(false)
+  handoffFrom  String? // agent that redirected (when auto-handoff completed)
+  safetyResult String? // e.g. emergency_priority | tool_denied | ok
+  toolCalls    String? // JSON array of executed tool names
+  latencyMs    Int      @default(0)
+  success      Boolean  @default(true)
+  inputPreview String? // first 80 chars — debugging only
+  answerLength Int?
+  createdAt    DateTime @default(now())
+
+  @@index([agent, createdAt])
+  @@index([user, createdAt])
+}

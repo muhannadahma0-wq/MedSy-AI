@@ -1,0 +1,370 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────────────────────────────────
+   MedSync-AI — "Rhythm" Design System (full redesign v4)
+   Soft-dark dual tone: light sidebar · deep slate canvas · white floating
+   cards · mint hero · emerald accent · serif display headlines ·
+   generous radii (20px) · calm spring micro-interactions
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Deep slate canvas with two soft emerald glows — the "calm night" mood */
+  body {
+    font-family: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
+      "Segoe UI", Roboto, sans-serif;
+    background-color: #0f172a;
+    background-image:
+      radial-gradient(64rem 40rem at 88% -12%, rgba(16, 185, 129, 0.09), transparent 62%),
+      radial-gradient(52rem 34rem at -12% 112%, rgba(45, 212, 191, 0.06), transparent 60%);
+    background-attachment: fixed;
+    color: #e2e8f0;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(16, 185, 129, 0.32);
+    color: #ecfdf5;
+  }
+
+  /* Slim dark scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+    border: 2px solid #0f172a;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  /* Accessible focus ring — emerald, visible on both tones */
+  :focus-visible {
+    outline: 2px solid rgba(52, 211, 153, 0.7);
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  /* ── Bilingual (EN/AR) support ─────────────────────────────────────────── */
+
+  /* Arabic UI → IBM Plex Sans Arabic for proper glyph shaping & legibility */
+  [dir="rtl"] body,
+  [dir="rtl"] input,
+  [dir="rtl"] select,
+  [dir="rtl"] textarea,
+  [dir="rtl"] button {
+    font-family: var(--font-arabic), var(--font-jakarta), ui-sans-serif,
+      system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Latin-script values (times, numbers, dates) stay LTR inside RTL layouts */
+  [dir="rtl"] input[type="number"],
+  [dir="rtl"] input[type="time"],
+  [dir="rtl"] input[type="date"],
+  [dir="rtl"] input[type="email"],
+  [dir="rtl"] input[type="tel"] {
+    direction: ltr;
+  }
+
+  /* Arabic text reads better with slightly taller line-height */
+  [dir="rtl"] body {
+    line-height: 1.75;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── Display typography ───────────────────────────────────────────────── */
+
+  /* Serif display face: Playfair (Latin) / Amiri (Arabic) */
+  .ms-serif {
+    font-family: var(--font-display), ui-serif, Georgia, "Times New Roman",
+      serif;
+    font-feature-settings: "liga" 1, "kern" 1;
+  }
+  [dir="rtl"] .ms-serif {
+    font-family: var(--font-arabic-serif), var(--font-display), ui-serif,
+      Georgia, serif;
+    line-height: 1.85;
+  }
+
+  /* Section title = serif light headline directly on the dark canvas */
+  .section-title {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-size: 1.65rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+    color: #f1f5f9;
+  }
+  @media (min-width: 640px) {
+    .section-title {
+      font-size: 1.95rem;
+    }
+  }
+  [dir="rtl"] .section-title {
+    font-family: var(--font-arabic-serif), var(--font-display), ui-serif,
+      Georgia, serif;
+    line-height: 1.8;
+  }
+
+  /* Small uppercase label — "YOUR RHYTHM" style */
+  .ms-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500;
+  }
+  .ms-eyebrow-canvas {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400/80;
+  }
+  /* Destructive-action variant (delete dialogs) */
+  .ms-eyebrow-canvas-danger {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-red-500;
+  }
+
+  /* Elegant emerald gradient text (numbers, highlights) */
+  .text-gradient {
+    background: linear-gradient(120deg, #059669 20%, #0d9488 55%, #10b981 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+
+  /* White card floating on the dark canvas — the core surface */
+  .glass-card {
+    background: #ffffff;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow:
+      0 1px 2px rgba(2, 6, 23, 0.18),
+      0 12px 32px -8px rgba(2, 6, 23, 0.4);
+  }
+  .glass-card-hover {
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .glass-card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 2px 4px rgba(2, 6, 23, 0.2),
+      0 20px 44px -10px rgba(2, 6, 23, 0.5);
+  }
+
+  /* Inset surface INSIDE white cards */
+  .surface-inset {
+    @apply bg-slate-50 border border-slate-200/70 rounded-xl;
+  }
+
+  /* Frosted dark panel (chips, toolbars, headers on the canvas) */
+  .ms-panel {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Mint hero banner with organic blurred circles */
+  .ms-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #ecfdf5 0%, #e8f5e9 48%, #f0fdf4 100%);
+    box-shadow: 0 18px 48px -12px rgba(2, 6, 23, 0.45);
+  }
+  .ms-hero::before,
+  .ms-hero::after {
+    content: "";
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+  .ms-hero::before {
+    width: 340px;
+    height: 340px;
+    top: -140px;
+    inset-inline-end: -90px;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.28), transparent 70%);
+    filter: blur(38px);
+  }
+  .ms-hero::after {
+    width: 260px;
+    height: 260px;
+    bottom: -130px;
+    inset-inline-start: -70px;
+    background: radial-gradient(circle, rgba(13, 148, 136, 0.18), transparent 70%);
+    filter: blur(34px);
+  }
+
+  /* ── Forms (used on white cards) ──────────────────────────────────────── */
+  .input-modern {
+    @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 hover:border-slate-300;
+  }
+  .select-modern {
+    @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 transition-all duration-200 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 hover:border-slate-300 appearance-none cursor-pointer;
+  }
+  .label-modern {
+    @apply block text-sm font-medium text-slate-700 mb-2;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+
+  /* Primary action — deep emerald, the "Take next dose" button */
+  .btn-primary-modern {
+    @apply inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold rounded-xl shadow-[0_6px_18px_-4px_rgba(4,120,87,0.5)] hover:shadow-[0_10px_26px_-6px_rgba(4,120,87,0.6)] transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  .btn-ghost-modern {
+    @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 font-medium rounded-xl shadow-sm transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  /* Ghost button on the DARK canvas */
+  .btn-ghost-dark {
+    @apply inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-slate-200 font-medium rounded-xl transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+
+  /* ── Navigation (light sidebar) ───────────────────────────────────────── */
+  .nav-item-modern {
+    @apply w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200;
+  }
+  .nav-item-active-modern {
+    @apply w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-100/80 text-emerald-900 font-semibold border border-emerald-200/70 hover:bg-emerald-100 transition-all duration-200;
+  }
+
+  /* ── Segmented control (dark) ─────────────────────────────────────────── */
+  .ms-segmented {
+    @apply flex items-center gap-1 rounded-xl bg-slate-800/90 border border-white/5 p-1 overflow-x-auto;
+  }
+  .ms-segmented-btn {
+    @apply shrink-0 rounded-lg px-3.5 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-all duration-200;
+  }
+  .ms-segmented-active {
+    @apply bg-emerald-100 text-emerald-900 shadow-sm hover:text-emerald-900;
+  }
+
+  /* ── Chips & badges (on white cards) ──────────────────────────────────── */
+  .chip-modern {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium;
+  }
+  .chip-taken {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200/80;
+  }
+  .chip-pending {
+    @apply bg-slate-100 text-slate-600 border border-slate-200;
+  }
+  .chip-delayed {
+    @apply bg-amber-50 text-amber-700 border border-amber-200/80;
+  }
+  .chip-missed {
+    @apply bg-red-50 text-red-700 border border-red-200/80;
+  }
+
+  /* ── Progress scrubber (medication plan timeline) ─────────────────────── */
+  .ms-scrubber-track {
+    @apply relative h-2 w-full rounded-full bg-slate-200 overflow-hidden;
+  }
+  .ms-scrubber-fill {
+    @apply absolute inset-y-0 start-0 rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)];
+  }
+
+  /* ── Chat (on white cards) ────────────────────────────────────────────── */
+  .chat-input-modern {
+    @apply w-full bg-white border border-slate-200 rounded-2xl px-4 py-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 resize-none;
+  }
+
+  /* ── Landing helpers ──────────────────────────────────────────────────── */
+  .ms-nav-link {
+    @apply text-slate-300 hover:text-white text-sm font-medium transition-colors duration-200;
+  }
+  .ms-feature-icon {
+    @apply flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-400/20 text-emerald-300;
+  }
+}
+
+@layer utilities {
+  .animate-fade-up {
+    animation: medsync-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-fade-in {
+    animation: medsync-fade-in 0.35s ease both;
+  }
+  .animate-pulse-soft {
+    animation: medsync-pulse-soft 2.4s ease-in-out infinite;
+  }
+  .animate-slide-in-right {
+    animation: medsync-slide-in-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes medsync-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes medsync-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes medsync-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes medsync-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes medsync-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
