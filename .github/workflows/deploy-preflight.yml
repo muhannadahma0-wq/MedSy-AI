@@ -27,32 +27,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install application dependencies
-        run: bun install --frozen-lockfile
+      - name: Install application dependencies (matches Render's Node runtime)
+        run: npm install --include=dev --no-audit --no-fund
 
       - name: Validate Prisma schema
-        run: bunx prisma validate
+        run: npx prisma validate
 
       - name: Generate Prisma Client
-        run: bunx prisma generate
+        run: npx prisma generate
 
       # The repository currently contains substantial pre-existing TypeScript errors
       # in legacy scripts and stale routes; keep the audit visible but let the
       # production compiler build proceed (next.config.ts currently also opts out).
       - name: Audit legacy TypeScript debt (non-blocking for this preflight)
         continue-on-error: true
-        run: bunx tsc --noEmit
+        run: npx tsc --noEmit
 
       - name: Build Next.js application
-        run: bun run build
+        run: npm run build
 
       - name: Install Socket.IO service dependencies
         run: npm install --prefix mini-services/socket-service --include=dev --no-audit --no-fund
