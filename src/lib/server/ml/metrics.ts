@@ -109,7 +109,7 @@ export function calibrationBins(scores: number[], labels: (0 | 1)[], bins = 10):
 
 export function evaluate(scores: number[], labels: (0 | 1)[], threshold = 0.5): ClassificationReport {
   const n = scores.length;
-  const positives = labels.reduce((a, l) => a + l, 0);
+  const positives = labels.reduce<number>((a, l) => a + l, 0);
   let tp = 0,
     fp = 0,
     tn = 0,
