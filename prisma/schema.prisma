@@ -113,6 +113,10 @@ model Conversation {
   agent          String // medical | medicine | personal-health | emergency
   title          String   @default("") // excerpt of the first user message
   messages       String   @default("[]") // JSON [{ role: user|assistant, content, at, agent? }]
+  // Compatibility fields for the legacy agent handler while callers migrate.
+  input          String   @default("")
+  output         String   @default("")
+  model          String   @default("")
   summary        String   @default("") // rolling summary for long threads
   language       String   @default("en") // ar | en
   messageCount   Int      @default(0)
