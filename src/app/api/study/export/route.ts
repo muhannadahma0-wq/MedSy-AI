@@ -268,7 +268,7 @@ export const GET = withMetrics("GET /api/study/export", async (req: Request) => 
         dose_scheduled_at: e.scheduledAt.toISOString(),
         dose_slot: e.slotTime,
         dose_status: e.status,
-        outcome_confirmed: confirmed ? 1 : e.status === "missed" ? 0 : null,
+        outcome_confirmed: confirmed ? (1 as const) : e.status === "missed" ? (0 as const) : null,
         delay_minutes: e.delayMinutes,
         skip_reason: e.skipReason,
         risk_score: pred ? round4(pred.riskScore) : null,
