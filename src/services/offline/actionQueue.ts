@@ -1,4 +1,4 @@
-import { dbPromise } from "./offlineDB";
+import { getOfflineDB } from "./offlineDB";
 
 /**
  * Offline action queue (plan §Phase 11).
@@ -36,7 +36,7 @@ export interface DeadLetter {
 }
 
 export async function enqueueAction(action: OfflineAction): Promise<void> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   // Replace a pending action with the same dedupKey (latest intent wins).
   const existing = await findPendingByDedupKey(action.type, action.dedupKey);
   if (existing && existing.id !== action.id) {
@@ -46,22 +46,22 @@ export async function enqueueAction(action: OfflineAction): Promise<void> {
 }
 
 export async function getAllActions(): Promise<OfflineAction[]> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   return db.getAll("actions");
 }
 
 export async function countPendingActions(): Promise<number> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   return db.count("actions");
 }
 
 export async function updateAction(action: OfflineAction): Promise<void> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   await db.put("actions", action);
 }
 
 export async function removeAction(id: string): Promise<void> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   await db.delete("actions", id);
 }
 
@@ -69,13 +69,13 @@ export async function findPendingByDedupKey(
   type: string,
   dedupKey: string
 ): Promise<OfflineAction | undefined> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   const all = await db.getAll("actions");
   return all.find((a) => a.type === type && a.dedupKey === dedupKey);
 }
 
 export async function recordDeadLetter(letter: DeadLetter): Promise<void> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   await db.put("dead", letter);
   // Cap the ledger — keep the most recent 20.
   const all = (await db.getAll("dead")) as DeadLetter[];
@@ -86,6 +86,6 @@ export async function recordDeadLetter(letter: DeadLetter): Promise<void> {
 }
 
 export async function getDeadLetters(): Promise<DeadLetter[]> {
-  const db = await dbPromise;
+  const db = await getOfflineDB();
   return db.getAll("dead");
 }
