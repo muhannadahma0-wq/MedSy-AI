@@ -5,6 +5,10 @@ import { ensureTodayDoses, getTodaySummary } from "@/lib/dose-service";
 const VALID = new Set(["taken", "snoozed", "skipped"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // This legacy route permits ID-based updates without user ownership checks.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const { id } = await params;
   try {
     const body = (await req.json()) as { status?: string };
