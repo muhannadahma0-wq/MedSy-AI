@@ -6,6 +6,10 @@ import type { InsightsDTO } from "@/lib/types";
 const WEEKDAY_KEYS = [0, 1, 2, 3, 4, 5, 6];
 
 export async function GET() {
+  // This legacy endpoint aggregates user rows globally; use authenticated analytics.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const now = new Date();
   const nowStart = new Date(now);
   nowStart.setHours(0, 0, 0, 0);
