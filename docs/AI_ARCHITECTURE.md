@@ -1,22 +1,23 @@
-# MedSync AI — معمارية الوكلاء المتخصصين (AI Architecture)
+# MedSync AI — Specialist Agent Architecture (AI Architecture)
 
-| البيانات الوصفية | القيمة |
+| Metadata | Value |
 |---|---|
 | **Architecture Version** | 2.0.0 |
 | **Last Verified** | 2026-09-29 |
-| **Safety Policy Version** | `2026-09-29.1` (`SAFETY_RULES_VERSION`، قابلة للتوسيع عبر `EMERGENCY_KEYWORDS_EXTRA`/`URGENT_KEYWORDS_EXTRA`) |
-| **Agent Version** | 2.0.0 (يُعاد في كل رد من البوابة) |
-| **API surface** | `/api/agents` (البوابة) · `/api/agents/{medical,medicine,personal-health,emergency,vision,chat,reports}` · `/api/ai-monitoring` |
-| **DB schema** | `prisma/schema.prisma` (أُضيف `User.status` / `User.tokenVersion` في 2026-09-29) |
+| **Safety Policy Version** | `2026-09-29.1` (`SAFETY_RULES_VERSION`, extensible via `EMERGENCY_KEYWORDS_EXTRA` / `URGENT_KEYWORDS_EXTRA`) |
+| **Agent Version** | 2.0.0 (returned in every gateway response) |
+| **API surface** | `/api/agents` (gateway) · `/api/agents/{medical,medicine,personal-health,emergency,vision,chat,reports}` · `/api/ai-monitoring` |
+| **DB schema** | `prisma/schema.prisma` (`User.status` / `User.tokenVersion` added on 2026-09-29) |
 
-> **المرجع:** مواصفة المالك (55 قسماً، 2026-09-29) — "4 متخصصين + Router + Safety Gateway +
+> **Reference:** the owner's specification (55 sections, 2026-09-29) — "4 specialists + Router + Safety Gateway +
 > Vision Pipeline + Provider Abstraction + Tool Permissions + Handoff + Output Validation +
-> Fallback — وليس 4 Chatbots".
-> هذه الوثيقة تسجّل **ما نُفِّذ فعلياً** وأين يعيش في الكود، وتحفظ عقد الصدق: ما لم يُنفَّذ مذكور صراحة.
+> Fallback — not 4 chatbots".
+> This document records **what was actually implemented** and where it lives in the code, and keeps the honesty
+> contract: anything not implemented is stated explicitly.
 
 ---
 
-## 1. البنية المنفَّذة (§53)
+## 1. Implemented architecture (§53)
 
 ```
                          USER
@@ -29,8 +30,8 @@
                   ┌────────▼────────┐
                   │ SAFETY ROUTER   │  safetyCheck() — emergency/urgent keywords
                   └────────┬────────┘  (bilingual EN/AR, deterministic;
-                                     SAFETY_RULES_VERSION 2026-09-29.1،
-                                     قوائم كلمات قابلة للتوسيع من env)
+                                     SAFETY_RULES_VERSION 2026-09-29.1,
+                                     keyword lists extensible from env)
                ┌───────────┴───────────┐
           Emergency?                 No
                │                       │
@@ -50,12 +51,12 @@
                               CONTEXT BUILDER  buildContext()
                               (permitted tools only, per question)
                                        │
-                              VERIFICATION GATE (P0-43 — حتمي)
+                              VERIFICATION GATE (P0-43 — deterministic)
                               certainty-violation correction, injection
                               markers, internal-id warnings + handoff
                               QUESTION-FIRST, escalation, severity
-                              (النتيجة → AiLog safetyResult
-                              بصيغة |verify:pass|warnings|corrected)
+                              (result → AiLog safetyResult
+                              as |verify:pass|warnings|corrected)
                                        │
                               AiLog (data-minimized audit)
                                        │
@@ -68,77 +69,77 @@
   Monitoring: GET /api/ai-monitoring → #/ai-monitoring page
 ```
 
-## 2. خريطة الملفات
+## 2. File map
 
-| المكوّن | الملف | الوظيفة |
+| Component | File | Role |
 |---------|-------|---------|
-| **بوابة AI** | `src/lib/server/ai/gateway.ts` | safetyCheck + classifyIntent + buildContext + تنفيذ الوكيل + تحقق المخرجات + handoff ب قفزة واحدة + AiLog |
-| **سجل الوكلاء** | `src/lib/server/ai/agent-registry.ts` | مصفوفة الصلاحيات (§19)، أذونات الأدوات لكل وكيل (§20-21)، أهداف handoff المسموحة (§24-26)، أنماط لغة التحويل |
-| **طبقة الأدوات** | `src/lib/server/ai/tools.ts` | 6 أدوات بتفويض في الكود (assertPermission قبل أي بيانات): getMedications / checkInteractions / getDoseHistory / getAdherenceSummary / getHealthProfile / getStoredRiskExplanation |
-| **تجريد المزودين** | `src/lib/server/ai/providers.ts` | واجهة ModelProvider (generate + analyzeImage)، سجل groq/gemini/zai، سلاسل من env (§54)، runProviderChain (§30: نفس الوكيل + مزود مختلف) |
-| **خط الرؤية** | `src/app/api/agents/vision/route.ts` | صور الأدوية/التقارير: تحقق ملف → استخراج منظّم محمي من الحقن → الأخصائي الصحيح → إشعار التحقق (§52) |
-| **المراقبة** | `src/app/api/ai-monitoring/route.ts` + `src/pages/aiMonitoring.jsx` | إحصاءات لكل وكيل: طلبات/نجاح/fallback/زمن p95/handoffs/تدخلات سلامة + مصفوفة الصلاحيات + سلاسل المزودين الحالية |
-| **الواجهة** | `src/pages/agents.jsx` | 6 خيارات §50 (4 أخصائيين عبر preferredAgent hint + تحليل تقرير + رفع صورة)، مودال المعاينة+النمط (§51)، لوحة نتيجة الرؤية + إشعار التحقق (§52)، شارات severity/handoff |
-| **اختبارات** | `scripts/test-agent-suite.ts` | TEST-MED-001/002, TEST-PH-001, TEST-ER-001, TEST-ROUTER-AR, TEST-URGENT, TEST-SAFETY-PREF, TEST-HANDOFF, TEST-SEC-001/002/003, TEST-MON-001 — **25/25 PASS** |
-| **سجل التدقيق** | `prisma/schema.prisma` → `AiLog` | requestId/user/agent/provider/model/intent/severity/fallbackUsed/handoff/safetyResult/toolCalls/latencyMs — **بلا نص طبي كامل** (§35 data minimization) |
+| **AI gateway** | `src/lib/server/ai/gateway.ts` | safetyCheck + classifyIntent + buildContext + agent execution + output verification + single-hop handoff + AiLog |
+| **Agent registry** | `src/lib/server/ai/agent-registry.ts` | Capability matrix (§19), per-agent tool permissions (§20-21), allowed handoff targets (§24-26), handoff language patterns |
+| **Tool layer** | `src/lib/server/ai/tools.ts` | 6 tools with authorization enforced in code (assertPermission before any data): getMedications / checkInteractions / getDoseHistory / getAdherenceSummary / getHealthProfile / getStoredRiskExplanation |
+| **Provider abstraction** | `src/lib/server/ai/providers.ts` | ModelProvider interface (generate + analyzeImage), groq/gemini/zai registry, chains from env (§54), runProviderChain (§30: same agent + different provider) |
+| **Vision pipeline** | `src/app/api/agents/vision/route.ts` | Medication/report images: file validation → injection-protected structured extraction → correct specialist → verification notice (§52) |
+| **Monitoring** | `src/app/api/ai-monitoring/route.ts` + `src/pages/aiMonitoring.jsx` | Per-agent statistics: requests/success/fallback/p95 latency/handoffs/safety interventions + capability matrix + current provider chains |
+| **UI** | `src/pages/agents.jsx` | 6 options per §50 (4 specialists via the preferredAgent hint + report analysis + image upload), preview+mode modal (§51), vision result panel + verification notice (§52), severity/handoff badges |
+| **Tests** | `scripts/test-agent-suite.ts` | TEST-MED-001/002, TEST-PH-001, TEST-ER-001, TEST-ROUTER-AR, TEST-URGENT, TEST-SAFETY-PREF, TEST-HANDOFF, TEST-SEC-001/002/003, TEST-MON-001 — **25/25 PASS** |
+| **Audit log** | `prisma/schema.prisma` → `AiLog` | requestId/user/agent/provider/model/intent/severity/fallbackUsed/handoff/safetyResult/toolCalls/latencyMs — **no full medical text** (§35 data minimization) |
 
-## 3. القواعد الصارمة — كيف فُرِّضت
+## 3. Hard rules — how they are enforced
 
-| القاعدة (القسم) | التنفيذ في الكود |
+| Rule (section) | Implementation in code |
 |---|---|
-| الطوارئ أولاً دائماً (§23، §41) | `safetyCheck()` قبل أي شيء؛ حتى `preferredAgent` لا يتجاوزها — المسارات المباشرة أيضاً (`wrapDirectAgentCall` يعيد التوجيه للطوارئ) |
-| لا يجيب وكيل عن كل شيء (§6، §25-26) | الحدود في الـ prompt الأصلي (نقل حرفي) + كشف علامات التحويل في المخرجات + handoff تلقائي بقلبة واحدة THROUGH الروتر |
-| Handoff عبر الروتر فقط (§24) | `runGateway` هو من ينفذ القفزة — لا اتصال وكيل←وكيل مباشر |
-| الحماية في الكود لا الـ prompt فقط (§21) | `assertPermission` قبل كل أداة؛ رفض مسجل (`safetyResult: tool_denied`) |
-| تصفية السياق (§36-37) | `buildContext` يختار الأدوات حسب كلمات السؤال — لا يرسل كل شيء أبداً |
-| ML ليس وكيلاً (§42-44) | `getStoredRiskExplanation` يقرأ التنبؤ **المخزّن** فقط؛ الـ LLM يشرح ولا يعيد الحساب |
-| الصور لا تذهب لنموذج نصي (§17، §31) | `supportsVision` في الواجهة — Groq يتخطى الصور تلقائياً؛ سلسلة VISION: gemini→zai |
-| حقن الـ prompt (§40) | تعليمة أمنية صريحة + المحتوى المستخرج يُمرَّر كـ DATA داخل محددات، أبداً كـ system instruction |
-| التعرف البصري ليس إثباتاً (§52) | إشعار تحقق ثنائي اللغة في كل رد رؤية + `confidence: "needs_verification"` (§32) |
-| fallback لا يغيّر التخصص (§30) | الوحدات الأربع تحتفظ بموجهها؛ السلسلة داخل الوحدة تعيد نفس الـ prompt لمزود آخر |
-| رفض آمن عند فشل الجميع (§29، §31) | رسالة "أدخل اسم الدواء يدوياً" — لا تخمين أبداً |
-| تفضيل المستخدم لا يتجاوز الروتر (§50) | `preferredAgent` = hint؛ الروتر يصحح: الطوارئ تفوز دائماً + عبارات ملكية البيانات ("my adherence") تصحَّح لـ Personal Health |
+| Emergency always first (§23, §41) | `safetyCheck()` runs before anything else; even `preferredAgent` cannot bypass it — direct routes too (`wrapDirectAgentCall` redirects to emergency) |
+| No agent answers everything (§6, §25-26) | Boundaries live in the original prompt (verbatim transfer) + detection of handoff markers in outputs + automatic single-hop handoff THROUGH the router |
+| Handoff only via the router (§24) | `runGateway` performs the hop — there is no direct agent-to-agent call |
+| Protection in code, not only in the prompt (§21) | `assertPermission` before every tool; denials are logged (`safetyResult: tool_denied`) |
+| Context filtering (§36-37) | `buildContext` selects tools by the question's keywords — it never sends everything |
+| ML is not an agent (§42-44) | `getStoredRiskExplanation` reads only the **stored** prediction; the LLM explains and never recomputes |
+| Images never go to a text-only model (§17, §31) | `supportsVision` in the interface — Groq skips images automatically; VISION chain: gemini→zai |
+| Prompt injection (§40) | Explicit security instruction + extracted content is passed as DATA inside delimiters, never as a system instruction |
+| Visual recognition is not proof (§52) | Bilingual verification notice on every vision response + `confidence: "needs_verification"` (§32) |
+| Fallback does not change the specialty (§30) | The four modules keep their prompts; the chain inside a module replays the same prompt to another provider |
+| Safe refusal when all providers fail (§29, §31) | A "enter the medication name manually" message — never a guess |
+| User preference never overrides the router (§50) | `preferredAgent` is a hint; the router corrects it: emergency always wins, and data-ownership phrases ("my adherence") are corrected to Personal Health |
 
-## 4. توجيه النماذج — إعداد فقط (§54)
+## 4. Model routing — configuration only (§54)
 
-`.env` (القيم الحالية):
+`.env` (current values):
 ```env
 MEDICAL_PRIMARY=groq        MEDICAL_SECONDARY=gemini   MEDICAL_FALLBACK=zai
 MEDICATION_PRIMARY=groq     MEDICATION_SECONDARY=gemini MEDICATION_FALLBACK=zai
 PERSONAL_PRIMARY=groq       PERSONAL_SECONDARY=gemini   PERSONAL_FALLBACK=zai
 EMERGENCY_PRIMARY=groq      EMERGENCY_SECONDARY=gemini  EMERGENCY_FALLBACK=zai
 VISION_PRIMARY=gemini       VISION_FALLBACK=zai
-# النماذج — لكل وكيل على حدة (P0-17/18: استُبدلت المتوقفة llama-3.3-70b/llama-4-scout في 2026-09-29):
+# Models — per agent (P0-17/18: the retired llama-3.3-70b/llama-4-scout were replaced on 2026-09-29):
 MEDICAL_CHAT_MODEL=openai/gpt-oss-120b       MEDICAL_SUMMARY_MODEL=openai/gpt-oss-20b
 MEDICATION_CHAT_MODEL=openai/gpt-oss-120b    MEDICATION_SUMMARY_MODEL=openai/gpt-oss-20b
 PERSONAL_CHAT_MODEL=openai/gpt-oss-120b      PERSONAL_SUMMARY_MODEL=openai/gpt-oss-20b
 EMERGENCY_CHAT_MODEL=openai/gpt-oss-120b     EMERGENCY_SUMMARY_MODEL=openai/gpt-oss-20b
 REPORT_CHAT_MODEL=openai/gpt-oss-120b
-GROQ_CHAT_MODEL=openai/gpt-oss-120b          # نموذج groq في طبقة providers.ts المشتركة
+GROQ_CHAT_MODEL=openai/gpt-oss-120b          # the groq model in the shared providers.ts layer
 ```
-تغيير نموذج/مزود **لا يتطلب تعديل أي وكيل أو الواجهة** — كل معرّف نموذج قابل للتجاوز من
-`.env` **لكل وكيل على حدة** (الفصل محفوظ: كل وكيل بمثيلاته الخاصة). النموذجان المتوقفان
-`llama-3.3-70b-versatile` و`meta-llama/llama-4-scout-17b-16e-instruct` استُبدلا في تدقيق
-2026-09-29 بـ `openai/gpt-oss-120b` (الإجابات) و`openai/gpt-oss-20b` (الملخصات)
-(`scripts/modernize-agents.ts` يسجّل الهجرة).
+Changing a model/provider **requires no change to any agent or the UI** — every model identifier can be
+overridden from `.env` **per agent** (separation preserved: each agent has its own instances). The two retired
+models `llama-3.3-70b-versatile` and `meta-llama/llama-4-scout-17b-16e-instruct` were replaced in the
+2026-09-29 audit with `openai/gpt-oss-120b` (answers) and `openai/gpt-oss-20b` (summaries)
+(`scripts/modernize-agents.ts` records the migration). Note: the `*_SUMMARY_MODEL` variables were later removed (v5).
 
-**الموثوقية (P1-44/45):** مهلة لكل استدعاء (45ث نص / 90ث رؤية) + قاطع دائرة داخل الذاكرة
-(3 إخفاقات ← 60ث مفتوح ← فحص نصف مفتوح) — الحالة مكشوفة عبر `providerHealth()` في
-`/api/ai-monitoring`؛ وكل مسار API يعيد ترويسة `x-request-id` من `withMetrics`.
+**Reliability (P1-44/45):** per-call timeout (45 s text / 90 s vision) + an in-memory circuit breaker
+(3 failures → open for 60 s → half-open probe) — state exposed via `providerHealth()` in
+`/api/ai-monitoring`; every API route returns an `x-request-id` header from `withMetrics`.
 
-**حالة الشبكة الحالية (مختبرة):** مفاتيح Groq/Google صالحة لكن شبكة بيئة المعاينة محجوبة
-جغرافياً من كليهما → تجيب السلسلة عبر z-ai (GLM). عند النشر من شبكة مدعومة تعود
-Groq/Gemini تلقائياً بلا أي تغيير.
+**Current network status (tested):** the Groq/Google keys are valid but the preview environment's network is
+geo-blocked from both → the chain answers via z-ai (GLM). When deployed from a supported network,
+Groq/Gemini take over automatically with no change.
 
-## 5. مصفوفة الصلاحيات (§19)
+## 5. Capability matrix (§19)
 
-معروضة حيّة في صفحة المراقبة (`capabilitiesMatrix` من `agent-registry.ts`):
-10 قدرات × 4 وكلاء (full/limited/none/handoff/owner_only) — تطابق جدول المواصفة حرفياً،
-بما فيها الصفان الممتنعان دوماً: **تغيير الأدوية ✗** و**تشخيص الأمراض ✗** للجميع.
+Shown live on the monitoring page (`capabilitiesMatrix` from `agent-registry.ts`):
+10 capabilities × 4 agents (full/limited/none/handoff/owner_only) — matches the specification table verbatim,
+including the two always-refused rows: **changing medications ✗** and **diagnosing diseases ✗** for all agents.
 
-## 6. مخرجات منظّمة (§28)
+## 6. Structured output (§28)
 
-كل رد من البوابة يحمل (إضافة إلى `output` المتوافق مع الواجهة القائمة):
+Every gateway response carries (in addition to the `output` that stays compatible with the existing UI):
 ```json
 {
   "routedTo": "personal-health", "handoffFrom": "medicine",
@@ -152,47 +153,47 @@ Groq/Gemini تلقائياً بلا أي تغيير.
 }
 ```
 
-**إضافات تدقيق 2026-09-29 (الإصدار 2.0.0):** حقول منظّمة إضافية — `actions` و`uncertainty`
-و`needsProfessionalReview` و`verification` + `agentVersion: "2.0.0"` و`policyVersion`
-(SAFETY_RULES_VERSION) و`modelVersion`؛ ويُسجَّل قرار بوابة التحقق الحتمية في `safetyResult`
-بصيغة `|verify:pass|warnings|corrected`.
+**2026-09-29 audit additions (version 2.0.0):** extra structured fields — `actions`, `uncertainty`,
+`needsProfessionalReview`, `verification` + `agentVersion: "2.0.0"`, `policyVersion`
+(SAFETY_RULES_VERSION) and `modelVersion`; the deterministic verification gate's decision is recorded in
+`safetyResult` as `|verify:pass|warnings|corrected`.
 
-## 7. نتائج الاختبار الحية (2026-09-29)
+## 7. Live test results (2026-09-29)
 
-- **طقم الاختبار: 25/25 PASS** (توجيه EN+AR، أداة شخصية بالبيانات، طوارئ بتصنيف الخطورة
-  وسطر التصعيد، أرجحية السلامة على التفضيل، handoff بقلبتين مختلفتين، أمن: حقن/بلا توكن/
-  نوع ملف مرفوض، مراقبة تجمع كل شيء).
-- **طقم الأمن (تدقيق 2026-09-29 الشامل): 22/22 PASS** (`scripts/test-security.ts`): مصفوفة المصادقة
-  (مجهول/توكن خردة/منتهي/حساب محذوف/حساب معطّل/tokenVersion غير مطابق)، BOLA
-  (تقرير/دواء/تحليلات لمستخدم أجنبي)، عزل غرف السوكيت (سوكيت المهاجم لا يستقبل إشعارات
-  الضحية)، رفض PDF المزيّف (فحص magic bytes)، حدود المعدل، وإبطال الخروج. انحدار كامل بعدها:
-  بوابة 25/25 + بيانات 9/9 + دورة حياة الدواء 40/40 + الموقع كامل 56/56 + E2E متصفح نظيف.
-- **الرؤية E2E:** صورة علبة Metformin 500mg مولّدة → استخراج `{drugName: "METFORMIN",
-  strength: "500 mg"}` + تفاعلات دوائية مع أدوية المستخدم + تفسير أخصائي الأدوية + إشعار
-  التحقق — في الواجهة وفي curl.
-- **المتصفح:** الشارات (Routed to / Redirected from / Severity) تعمل، عربي RTL بلا فائض،
-  موبايل 390/390.
+- **Test suite: 25/25 PASS** (EN+AR routing, personal tool with data, emergency with severity grading and
+  escalation line, safety precedence over preference, handoff with two different flips, security:
+  injection / no token / rejected file type, monitoring aggregates everything).
+- **Security suite (full 2026-09-29 audit): 22/22 PASS** (`scripts/test-security.ts`): authentication matrix
+  (anonymous / junk token / expired / deleted account / disabled account / mismatched tokenVersion), BOLA
+  (report/medication/analytics of a foreign user), socket room isolation (the attacker's socket receives none of
+  the victim's notifications), forged-PDF rejection (magic-byte check), rate limits, and logout revocation. Full
+  regression afterwards: gateway 25/25 + data 9/9 + medication lifecycle 40/40 + full site 56/56 + clean browser E2E.
+- **Vision E2E:** a generated Metformin 500mg box image → extraction `{drugName: "METFORMIN",
+  strength: "500 mg"}` + drug interactions with the user's medications + medication specialist explanation +
+  verification notice — in the UI and via curl.
+- **Browser:** badges (Routed to / Redirected from / Severity) work, Arabic RTL with no overflow,
+  mobile 390/390.
 
-## 8. ما لم يُنفَّذ بعد (بأسبابه — عقد الصدق)
+## 8. Not yet implemented (with reasons — honesty contract)
 
-| البند | السبب |
+| Item | Reason |
 |-------|-------|
-| Function calling حقيقي داخل الاستدلال (LLM يقرر الأداة أثناء التوليد) | التنفيذ الحالي context-builder حتمي — **أكثر أماناً وقابلية للتدقيق** (نفس فلسفة §23 الروتر الحتمي). الترقية لاحقاً للنماذج الداعمة ممكنة عبر نفس طبقة الأدوات |
-| Metadata stripping للصور (EXIF) | الصور تعالج في الذاكرة ولا تُخزَّن أبداً؛ التنظيف الحقيقي يحتاج مكتبة صور |
-| مصادر طبية خارجية موثقة لكل حقيقة دوائية (§34 sources) | جدول التفاعلات الثابت (18 زوجاً) يذكر source لكل تفاعل؛ المصادر الخارجية المباشرة مؤجلة |
-| Evaluation نوعية لمحتوى إجابات كل وكيل (§46 بمعايير الجودة) | طقم §47 يغطي التوجيه/السلامة/الأمن؛ تقييم جودة المحتوى يحتاج مجموعة معايير بشرية — مطلوب للدراسة |
-| `/ai-monitoring` كصفحة مشغل بإدارة أدوار | الصفحة متاحة لكل مستخدم مصادق (بياناته فقط عبر AiLog user-scoped... انظر ملاحظة) |
+| True function calling inside reasoning (the LLM decides the tool during generation) | The current implementation is a deterministic context builder — **safer and more auditable** (same philosophy as the §23 deterministic router). Upgrading later for supporting models is possible through the same tool layer |
+| Image metadata stripping (EXIF) | Images are processed in memory and never stored; real cleaning needs an image library |
+| External cited medical sources for every drug fact (§34 sources) | The static interaction table (18 pairs) cites a source per interaction; direct external sources are deferred |
+| Qualitative evaluation of each agent's answer content (§46 quality criteria) | The §47 suite covers routing/safety/security; content-quality evaluation needs a human rubric set — required for the study |
+| `/ai-monitoring` as an operator page with role management | The page is available to every authenticated user (see the note below) |
 
-**ملاحظة أمان (صادقة):** `/api/ai-monitoring` يعرض حالياً مقاييس مجمّعة عبر كل المستخدمين
-(بلا محتوى طبي) لأي مستخدم مصادَق — مقبول لمرحلة التطوير/العرض، ويحتاج قيد دور
-(operator) قبل أي نشر حقيقي، موثق في SECURITY_ASSESSMENT.
+**Security note (honest):** `/api/ai-monitoring` currently exposes aggregate metrics across all users
+(no medical content) to any authenticated user — acceptable for the development/demo phase, and it needs an
+operator role restriction before any real deployment, as recorded in SECURITY_ASSESSMENT.
 
-## 9. أوامر إعادة التحقق
+## 9. Re-verification commands
 
 ```bash
-bun run scripts/test-agent-suite.ts    # 25 فحص توجيه/سلامة/أمن — يجب: 25/25
-bun run scripts/test-security.ts       # 22 فحص أمن المصادقة/السوكيت — يجب: 22/22
-bun run scripts/state-snapshot.ts      # حالة المنصة
-curl -s localhost:3000/api/healthz     # مزودو AI
-# المتصفح: #/agents (الموجّه + رفع صورة) و #/ai-monitoring (المراقبة)
+bun run scripts/test-agent-suite.ts    # 25 routing/safety/security checks — must be: 25/25
+bun run scripts/test-security.ts       # 22 auth/socket security checks — must be: 22/22
+bun run scripts/state-snapshot.ts      # platform state
+curl -s localhost:3000/api/healthz     # AI providers
+# Browser: #/agents (router + image upload) and #/ai-monitoring (monitoring)
 ```

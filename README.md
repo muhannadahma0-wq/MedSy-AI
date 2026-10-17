@@ -132,7 +132,7 @@ bun run lint                        # 0 errors / 0 warnings
 | [STUDY_PROTOCOL.md](docs/STUDY_PROTOCOL.md) | Study protocol (arms, sample sizes, ethics) |
 | [OFFLINE_SYNC.md](docs/OFFLINE_SYNC.md) | Offline sync + conflict policy |
 | [ADHERENCE_PLATFORM.md](docs/ADHERENCE_PLATFORM.md) | End-to-end adherence platform architecture |
-| [LIMITATIONS.md](docs/LIMITATIONS.md) · [DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) | Declared limits · deployment guide |
+| [LIMITATIONS.md](docs/LIMITATIONS.md) · [DEPLOY.md](DEPLOY.md) | Declared limits · deployment on Render |
 
 ## Research honesty contract
 
