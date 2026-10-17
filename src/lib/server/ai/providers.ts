@@ -248,13 +248,12 @@ const geminiProvider: ModelProvider = {
 // z-ai gateway (GLM by Zhipu AI — text + vision; last-resort fallback)
 // ---------------------------------------------------------------------------
 
-let zaiClientPromise: Promise<typeof ZAI> | null = null;
-async function zaiClient() {
+type ZAIClient = Awaited<ReturnType<typeof ZAI.create>>;
+let zaiClientPromise: Promise<ZAIClient> | null = null;
+
+async function zaiClient(): Promise<ZAIClient> {
   if (!zaiClientPromise) {
-    zaiClientPromise = (async () => {
-      const zai = await ZAI.create();
-      return zai;
-    })();
+    zaiClientPromise = ZAI.create();
   }
   return zaiClientPromise;
 }
