@@ -359,7 +359,9 @@ export async function runEngineTick(userIds?: string[]): Promise<TickSummary> {
   const users =
     userIds && userIds.length > 0
       ? userIds
-      : (await db.medication.findMany({ select: { userId: true }, distinct: ["userId"] })).map((m) => m.userId);
+      : (await db.medication.findMany({ select: { userId: true }, distinct: ["userId"] }))
+          .map((m) => m.userId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0);
 
   const planFrom = new Date(now.getTime() - LATE_DELIVERY_LIMIT_MS);
   const planTo = new Date(now.getTime() + PLAN_HOURS * 3600 * 1000);
