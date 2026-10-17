@@ -34,7 +34,8 @@ import {
 // http://<private-socket-host>:3004/emit on Render. The legacy scheduler
 // uses the service root while the unified engine uses the full URL.
 const SOCKET_EMIT_URL =
-  process.env.SOCKET_EMIT_URL || "http://127.0.0.1:3004/emit";
+  process.env.SOCKET_EMIT_URL ||
+  `${(process.env.SOCKET_PUBLIC_URL || "http://127.0.0.1:3003").replace(/\/$/, "")}/emit`;
 const SOCKET_SERVICE = SOCKET_EMIT_URL.replace(/\/emit\/?$/, "");
 
 // Global timer management to prevent duplicate notifications
