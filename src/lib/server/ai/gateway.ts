@@ -395,7 +395,7 @@ const INJECTION_MARKERS: RegExp[] = [
 const INTERNAL_ID_PATTERN = /\bcm[a-z0-9]{20,}\b/;
 
 export interface VerificationOutcome {
-  result: "pass" | "warnings" | "corrected";
+  result: "pass" | "warnings" | "corrected" | "skipped";
   warnings: string[];
   /** Safe correction appended to the output when a hard violation is found. */
   correction: string | null;
@@ -723,7 +723,7 @@ export interface GatewayResult {
     actions: string[];
     uncertainty: string;
     needsProfessionalReview: boolean;
-    verification: { result: "pass" | "warnings" | "corrected"; warnings: string[] };
+    verification: { result: "pass" | "warnings" | "corrected" | "skipped"; warnings: string[] };
     // MASTER AUDIT P2-56 — reproducibility metadata.
     agentVersion: string;
     policyVersion: string;
