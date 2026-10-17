@@ -38,14 +38,17 @@ class SocketService {
       auth: { token },
     };
 
-    // In Render, connect directly to the dedicated public Socket.IO service.
-    // The XTransformPort URL remains only as a local sandbox-preview fallback.
+    // Render uses the standard Socket.IO path; the older root path is kept
+    // only for local sandbox previews.
     this.socket = socketUrl
       ? io(socketUrl, {
           ...socketOptions,
-          path: process.env.NEXT_PUBLIC_SOCKET_PATH || '/',
+          path: process.env.NEXT_PUBLIC_SOCKET_PATH || '/socket.io/',
         })
-      : io('/?XTransformPort=3003', socketOptions);
+      : io('/?XTransformPort=3003', {
+          ...socketOptions,
+          path: '/',
+        });
 
     this.socket.on('connect', () => {
       console.log('Connected to WebSocket server:', this.socket.id);
