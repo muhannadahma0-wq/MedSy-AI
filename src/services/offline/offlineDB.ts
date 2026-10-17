@@ -14,14 +14,28 @@ import { openDB } from "idb";
  *
  * Version 2 adds the "dead" store; v1 databases upgrade in place.
  */
-export const dbPromise = openDB("medsync-db", 2, {
-  upgrade(db, _oldVersion, _newVersion, tx) {
-    if (!db.objectStoreNames.contains("actions")) {
-      db.createObjectStore("actions", { keyPath: "id" });
-    }
-    if (!db.objectStoreNames.contains("dead")) {
-      db.createObjectStore("dead", { keyPath: "id" });
-    }
-    void tx;
-  },
-});
+// Do not open IndexedDB at module evaluation: Next.js imports client modules
+// during server rendering/build, where the browser IndexedDB global is absent.
+// The database is initialized lazily only when a browser-side queue operation
+// actually needs it.
+let dbPromise: ReturnType<typeof openDB> | null = null;
+
+export function getOfflineDB() {
+  if (typeof window === "undefined" || typeof indexedDB === "undefined") {
+    throw new Error("Offline storage is only available in a browser.");
+  }
+  if (!dbPromise) {
+    dbPromise = openDB("medsync-db", 2, {
+      upgrade(db, _oldVersion, _newVersion, tx) {
+        if (!db.objectStoreNames.contains("actions")) {
+          db.createObjectStore("actions", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("dead")) {
+          db.createObjectStore("dead", { keyPath: "id" });
+        }
+        void tx;
+      },
+    });
+  }
+  return dbPromise;
+}
