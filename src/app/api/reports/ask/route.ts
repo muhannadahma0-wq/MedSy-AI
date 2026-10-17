@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ZAI from "z-ai-web-dev-sdk";
 import { db } from "@/lib/db";
+import { requireSelf } from "@/lib/server/jwt";
 import { chunkReport, retrievePassages } from "@/lib/retrieval";
 import type { AssistantApiResponse } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
@@ -12,6 +13,9 @@ import type { Locale } from "@/lib/i18n";
  */
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requireSelf(req);
+    if (guard instanceof Response) return guard;
+
     const body = (await req.json()) as { reportId?: string; question?: string; locale?: Locale };
     const reportId = body.reportId;
     const question = body.question?.trim();
@@ -21,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "reportId and question are required" }, { status: 400 });
     }
 
-    const report = await db.report.findUnique({ where: { id: reportId } });
+    const report = await db.report.findFirst({ where: { id: reportId, userId: guard.id } });
     if (!report) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
