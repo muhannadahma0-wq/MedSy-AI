@@ -1,0 +1,84 @@
+name: MedSync-AI deployment preflight
+
+on:
+  push:
+    branches:
+      - deploy/postgres-preflight
+  pull_request:
+    branches:
+      - main
+      - deploy/postgres-preflight
+
+permissions:
+  contents: read
+
+jobs:
+  validate-build:
+    runs-on: ubuntu-latest
+    env:
+      # Throwaway values used for schema validation/build only. They are never deployment secrets.
+      DATABASE_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/medsync?schema=public
+      DIRECT_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/medsync?schema=public
+      JWT_SECRET: ci-placeholder-not-used-for-deployment
+      SOCKET_PUBLIC_URL: http://127.0.0.1:3101
+      NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3101
+      NEXT_PUBLIC_SOCKET_PATH: /socket.io/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install application dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate
+
+      - name: Generate Prisma Client
+        run: bunx prisma generate
+
+      - name: Type-check application
+        run: bunx tsc --noEmit
+
+      - name: Build Next.js application
+        run: bun run build
+
+      - name: Install Socket.IO service dependencies
+        run: npm install --prefix mini-services/socket-service --include=dev --no-audit --no-fund
+
+      - name: Smoke-test Socket.IO HTTP endpoints and HMAC protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd mini-services/socket-service
+          NODE_ENV=production JWT_SECRET="$JWT_SECRET" PORT=3101 SOCKET_PATH=/socket.io/ SOCKET_CORS_ORIGINS='*' npm run start > /tmp/medsync-socket.log 2>&1 &
+          SOCKET_PID=$!
+          cleanup() {
+            kill "$SOCKET_PID" 2>/dev/null || true
+            wait "$SOCKET_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 25); do
+            if curl --silent --fail http://127.0.0.1:3101/health >/tmp/medsync-socket-health.json; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q '"ok":true' /tmp/medsync-socket-health.json
+
+          BODY='{"userId":null,"notification":{"title":"CI smoke test","message":"Signed bridge test","type":"test"}}'
+          SIGNATURE="$(printf '%s' "$BODY" | node -e 'const crypto = require("crypto"); let body=""; process.stdin.on("data", d => body += d).on("end", () => process.stdout.write(crypto.createHmac("sha256", process.env.JWT_SECRET).update(body).digest("hex")));')"
+          CODE="$(curl --silent --output /tmp/medsync-emit.json --write-out '%{http_code}' --request POST http://127.0.0.1:3101/emit --header 'Content-Type: application/json' --header "x-emit-signature: $SIGNATURE" --data "$BODY")"
+          test "$CODE" = "200"
+          grep -q '"success":true' /tmp/medsync-emit.json
+
+          BAD_CODE="$(curl --silent --output /tmp/medsync-emit-bad.json --write-out '%{http_code}' --request POST http://127.0.0.1:3101/emit --header 'Content-Type: application/json' --header 'x-emit-signature: invalid' --data "$BODY")"
+          test "$BAD_CODE" = "401"
