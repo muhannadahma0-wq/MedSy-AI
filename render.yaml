@@ -15,6 +15,7 @@ services:
     plan: free
     region: frankfurt
     branch: deploy/postgres-preflight
+    autoDeployTrigger: checksPass
     buildCommand: npm install --include=dev --no-audit --no-fund && npx prisma generate && npx prisma db push && npm run build
     startCommand: npm run start
     healthCheckPath: /api/healthz
@@ -49,6 +50,7 @@ services:
     plan: free
     region: frankfurt
     branch: deploy/postgres-preflight
+    autoDeployTrigger: checksPass
     rootDir: mini-services/socket-service
     buildCommand: npm install --include=dev --no-audit --no-fund
     startCommand: npm run start
