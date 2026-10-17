@@ -5,23 +5,23 @@ import { LanguageProvider } from "./context/languageContext.jsx";
 import { CalendarSyncProvider } from "./context/calendarSyncContext.jsx";
 
 // Pages
-import LandingPage from "./pages/landingPage.jsx";
-import Login from "./pages/Login.jsx";
-import Signup from "./pages/Signup.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
-import HealthProfile from "./pages/HealthProfile.jsx";
-import MedicationEntryForm from "./pages/addMedication.jsx";
-import MultiAgentChat from "./pages/agents.jsx";
-import NotificationsPage from "./pages/notifications.jsx";
-import OAuthCallback from "./pages/OAuthCallback.jsx";
-import Analytics from "./pages/Analytics.jsx";
-import Intelligence from "./pages/intelligence.jsx";
-import AIMonitoring from "./pages/aiMonitoring.jsx";
-import ResearchOverview from "./pages/research.jsx";
-import Reports from "./pages/Reports.jsx";
-import ReportChat from "./pages/ReportChat.jsx";
-import ReportAnalysis from "./pages/ReportAnalysis.jsx";
-import Settings from "./pages/Settings.jsx";
+import LandingPage from "./legacyPages/landingPage.jsx";
+import Login from "./legacyPages/Login.jsx";
+import Signup from "./legacyPages/Signup.jsx";
+import Dashboard from "./legacyPages/Dashboard.jsx";
+import HealthProfile from "./legacyPages/HealthProfile.jsx";
+import MedicationEntryForm from "./legacyPages/addMedication.jsx";
+import MultiAgentChat from "./legacyPages/agents.jsx";
+import NotificationsPage from "./legacyPages/notifications.jsx";
+import OAuthCallback from "./legacyPages/OAuthCallback.jsx";
+import Analytics from "./legacyPages/Analytics.jsx";
+import Intelligence from "./legacyPages/intelligence.jsx";
+import AIMonitoring from "./legacyPages/aiMonitoring.jsx";
+import ResearchOverview from "./legacyPages/research.jsx";
+import Reports from "./legacyPages/Reports.jsx";
+import ReportChat from "./legacyPages/ReportChat.jsx";
+import ReportAnalysis from "./legacyPages/ReportAnalysis.jsx";
+import Settings from "./legacyPages/Settings.jsx";
 
 // Components
 import NotificationContainer from "./components/NotificationToast.jsx";
