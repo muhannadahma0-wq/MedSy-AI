@@ -23,7 +23,12 @@ class SocketService {
     // reached through the Caddy gateway via the XTransformPort query parameter.
     const token = (typeof localStorage !== 'undefined' && localStorage.getItem('token')) || '';
 
-    this.socket = io('/?XTransformPort=3003', {
+    const socketUrl =
+      typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SOCKET_URL
+        ? process.env.NEXT_PUBLIC_SOCKET_URL.trim()
+        : "";
+
+    const socketOptions = {
       transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
@@ -31,7 +36,16 @@ class SocketService {
       reconnectionAttempts: 5,
       timeout: 20000,
       auth: { token },
-    });
+    };
+
+    // In Render, connect directly to the dedicated public Socket.IO service.
+    // The XTransformPort URL remains only as a local sandbox-preview fallback.
+    this.socket = socketUrl
+      ? io(socketUrl, {
+          ...socketOptions,
+          path: process.env.NEXT_PUBLIC_SOCKET_PATH || '/',
+        })
+      : io('/?XTransformPort=3003', socketOptions);
 
     this.socket.on('connect', () => {
       console.log('Connected to WebSocket server:', this.socket.id);
