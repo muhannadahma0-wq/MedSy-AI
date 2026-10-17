@@ -20,7 +20,9 @@ import { db } from "@/lib/db";
  * the stored version is bumped.
  */
 
-const JWT_SECRET = process.env.JWT_SECRET || "medsync-ai-sandbox-secret";
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === "production" ? "" : "medsync-ai-sandbox-secret");
 const EXPIRES_IN_SECONDS = 60 * 60 * 24; // 1d
 export const SESSION_COOKIE_NAME = "medsync_token";
 
@@ -38,6 +40,7 @@ function fromBase64url(input: string): Buffer {
 }
 
 export function signToken(payload: { id: string; tv?: number }): string {
+  if (!JWT_SECRET) throw new Error("JWT_SECRET must be configured in production.");
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const now = Math.floor(Date.now() / 1000);
   const body = base64url(
@@ -51,6 +54,7 @@ export function signToken(payload: { id: string; tv?: number }): string {
 }
 
 export function verifyToken(token: string): { id: string; tv?: number } | null {
+  if (!JWT_SECRET) return null;
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
