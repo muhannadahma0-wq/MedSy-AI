@@ -121,7 +121,7 @@ export function trainLogisticRegression(
   const Z = X.map((row) => row.map((v, j) => (v - mean[j]) / std[j]));
 
   // Class-balanced weights.
-  const pos = y.reduce((a, l) => a + l, 0);
+  const pos = y.reduce<number>((a, l) => a + l, 0);
   const neg = n - pos;
   const wPos = pos > 0 ? n / (2 * pos) : 1;
   const wNeg = neg > 0 ? n / (2 * neg) : 1;
