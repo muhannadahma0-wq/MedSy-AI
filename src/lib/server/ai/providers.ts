@@ -271,6 +271,9 @@ const zaiProvider: ModelProvider = {
   async analyzeImage(prompt, imageDataUrl) {
     const zai = await zaiClient();
     const completion = await zai.chat.completions.createVision({
+      // The SDK currently requires model in its TypeScript request type.
+      // Override this if the configured Z.AI gateway uses a different vision model.
+      model: process.env.ZAI_VISION_MODEL || "glm-4.5v",
       messages: [
         {
           role: "user",
