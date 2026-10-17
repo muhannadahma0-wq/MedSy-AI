@@ -6,14 +6,12 @@ import ZAI from "z-ai-web-dev-sdk";
  * prompts are reused verbatim, only the LLM backend differs.
  */
 
-let zaiPromise: Promise<typeof ZAI> | null = null;
+type ZAIClient = Awaited<ReturnType<typeof ZAI.create>>;
+let zaiPromise: Promise<ZAIClient> | null = null;
 
-async function getClient() {
+async function getClient(): Promise<ZAIClient> {
   if (!zaiPromise) {
-    zaiPromise = (async () => {
-      const zai = await ZAI.create();
-      return zai;
-    })();
+    zaiPromise = ZAI.create();
   }
   return zaiPromise;
 }
