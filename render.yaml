@@ -1,7 +1,7 @@
 # Render Blueprint for the production preflight branch.
 # The database is a separate Supabase project; this blueprint never reuses Masar Startup.
 envVarGroups:
-  - name: medsya-ai-shared-secrets
+  - name: medsync-ai-shared-secrets
     envVars:
       - key: JWT_SECRET
         generateValue: true
@@ -10,7 +10,7 @@ envVarGroups:
 
 services:
   - type: web
-    name: medsya-ai
+    name: medsync-ai
     runtime: node
     plan: free
     region: frankfurt
@@ -19,7 +19,7 @@ services:
     startCommand: npm run start
     healthCheckPath: /api/healthz
     envVars:
-      - fromGroup: medsya-ai-shared-secrets
+      - fromGroup: medsync-ai-shared-secrets
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
@@ -54,7 +54,7 @@ services:
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
-      - fromGroup: medsya-ai-shared-secrets
+      - fromGroup: medsync-ai-shared-secrets
       - key: NODE_ENV
         value: production
       - key: SOCKET_PATH
