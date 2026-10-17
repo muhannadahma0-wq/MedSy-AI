@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# Keep a single preflight run for this branch; newer commits supersede stale builds.
+concurrency:
+  group: deploy-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-build:
     runs-on: ubuntu-latest
