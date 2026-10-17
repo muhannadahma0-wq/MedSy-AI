@@ -9,7 +9,9 @@ import { runEngineTick } from "@/lib/server/reminder-engine";
 import { withMetrics } from "@/lib/server/metrics";
 
 export const POST = withMetrics("POST /api/reminder-engine/tick", async (req: Request) => {
-  const body = await readJson<{ userId?: string; all?: boolean }>(req).catch(() => ({}));
+  const body = await readJson<{ userId?: string; all?: boolean }>(req).catch(
+    (): { userId?: string; all?: boolean } => ({})
+  );
 
   // Phase 12 — auth-only trigger (idempotent, shadow-aware). The body userId
   // may only ever scope to the caller's own tick; { all: true } runs the
