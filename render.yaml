@@ -6,7 +6,7 @@ envVarGroups:
       - key: JWT_SECRET
         generateValue: true
       - key: SOCKET_CORS_ORIGINS
-        value: "*"
+        value: "https://medsync-ai-8wq3.onrender.com"
 
 services:
   - type: web
@@ -16,7 +16,7 @@ services:
     region: frankfurt
     branch: deploy/postgres-preflight
     autoDeployTrigger: checksPass
-    buildCommand: npm install --include=dev --no-audit --no-fund && npx prisma generate && npx prisma db push && npm run build
+    buildCommand: npm install --include=dev --no-audit --no-fund && npx prisma generate && npm run build
     startCommand: npm run start
     healthCheckPath: /api/healthz
     envVars:
