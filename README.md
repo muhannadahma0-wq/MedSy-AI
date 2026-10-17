@@ -1,150 +1,149 @@
-# MedSync-AI — منصة الالتزام الدوائي الذكية
+# MedSync-AI — Intelligent Medication Adherence Platform
 
-> مشروع تخرج بحثي: تذكيرات دوائية **متكيفة** مدفوعة بتعلّم آلي يتنبأ بخطر تفويت كل جرعة على حدة،
-> مع **أربعة وكلاء ذكاء اصطناعي منفصلين** (كل وكيل بنموذجه وإعداداته الخاصة)، ودعم **ثنائي اللغات
-> (EN/AR مع RTL كامل)**، ومنصة **دراسة محكّمة** لقياس أثر التدخل.
+> A graduation research project: **adaptive** medication reminders driven by machine learning that predicts
+> the risk of missing each individual dose, **four separate AI agents** (each with its own model and settings),
+> **bilingual support (EN/AR with full RTL)**, and a **controlled-study platform** for measuring the intervention's effect.
 
-**الوثيقة المرجعية للسجل الكامل:** [`docs/FULL_RECORD.md`](docs/FULL_RECORD.md) —
-رؤية المشروع، البنية، كل مرحلة بأدلتها، منهجية ML، السجل الزمني الكامل، وكل الإضافات
-من أول سطر (الوثائق التاريخية المُنجزة مُدمجة فيه — أُرشِف العام منها في Task 28).
+See also: [`QUICKSTART.md`](QUICKSTART.md) for setup and [`DEPLOY.md`](DEPLOY.md) for deploying on Render.
 
 ---
 
-## نظرة سريعة
+## At a glance
 
 | | |
 |---|---|
-| **الواجهة** | الكود الأصلي (React 19، 15 صفحة) داخل Next.js 16 — صفحة واحدة `/` بـ HashRouter |
-| **الخادم** | 30+ مسار API (Next.js Route Handlers) تعكس Express الأصلي 1:1 |
-| **البيانات** | Prisma ORM + SQLite — 12 نموذجاً (User, Medication, DoseEvent, SmartReminder, RiskPrediction, ModelArtifact, StudyAssignment…) |
-| **الوقت الفعلي** | Socket.IO mini-service (3003) + جسر إصدار (3004) — غرف لكل مستخدم، JWT في المصافحة |
-| **الذكاء الاصطناعي** | كل وكيل وحدة مستقلة: ChatGroq خاص + مثيل Gemini خاص + ملاذ z-ai (GLM) — **لا يوجد llm.ts مشترك** |
-| **الأمان** | هوية حتمية من الخادم على كل مسار محمي (`requireSelf`: توكن ← حساب موجود ← نشط ← tokenVersion) + BOLA guards + حدود معدل + HttpOnly cookie + رموز نسخ احتياطي مُجزّأة SHA-256 + عقد أخطاء آمن |
-| **أوفلاين** | طابور IndexedDB → إعادة تشغيل بتراجع أسّي → dead-letter → شارة حالة مرئية |
+| **Frontend** | Original React 19 code (15 pages) inside Next.js 16 — a single page `/` using HashRouter |
+| **Backend** | 30+ API routes (Next.js Route Handlers) mirroring the original Express API 1:1 |
+| **Data** | Prisma ORM + SQLite — 12 models (User, Medication, DoseEvent, SmartReminder, RiskPrediction, ModelArtifact, StudyAssignment…) |
+| **Real time** | Socket.IO mini-service (3003) + emit bridge (3004) — one room per user, JWT in the handshake |
+| **AI** | Every agent is an independent module: its own ChatGroq + its own Gemini instance + a z-ai (GLM) fallback — **no shared llm.ts** |
+| **Security** | Deterministic server-side identity on every protected route (`requireSelf`: token → account exists → active → tokenVersion) + BOLA guards + rate limits + HttpOnly cookie + SHA-256-hashed backup codes + safe error contract |
+| **Offline** | IndexedDB queue → replay with exponential backoff → dead-letter → visible status badge |
 
-**حالة المنصة (2026-10-17 — بعد تنظيف Task 27/28):** 19 مستخدماً · 41 دواءً · 1,856 حدث جرعة · 1,113 تنبؤ خطر ·
-النموذج النشط Logistic Regression (ROC-AUC 0.6926 / PR-AUC 0.7697 / Brier 0.2165،
-تحقق زمني n=325) · أذرع الدراسة 6/7 · فحوص البيانات 9/9 ALL PASSED · lint 0/0 ·
-**بطارية المراجعة الشاملة: 350 فحص اختبار كلها خضراء** (السجل الكامل: docs/FULL_RECORD.md).
+**Platform state (2026-10-17):** 19 users · 41 medications · 1,856 dose events · 1,113 risk predictions ·
+active model: Logistic Regression (ROC-AUC 0.6926 / PR-AUC 0.7697 / Brier 0.2165, temporal validation n=325) ·
+study arms 6/7 · data checks 9/9 ALL PASSED · lint 0/0 · full review battery: 350 test checks, all green.
 
-## الوكلاء الأذكياء (بنية منفصلة كما في المشروع الأصلي)
+## AI agents (separate architecture, as in the original project)
 
 ```
-AI GATEWAY (/api/agents) — safety router ← intent ← context (أدوات مصرّح لها) ← أخصائي ← تحقق مخرجات
-  medical-model.ts      →  Groq gpt-oss-120b   +  Gemini خاص  +  z-ai   (المعرفة الطبية)
-  emergency-model.ts    →  Groq gpt-oss-120b   +  Gemini خاص  +  z-ai   (فرز الطوارئ — تصعيد مضمون + تصنيف خطورة)
-  medicine-model.ts     →  Groq gpt-oss-120b   +  Gemini خاص  +  z-ai   (أخصائي الأدوية)
-  personal-health-model →  Groq gpt-oss-120b   +  Gemini خاص  +  z-ai   (الصحة الشخصية — أدوات بيانات فقط له)
-  report-analysis.ts    →  Groq gpt-oss-120b   +  z-ai                      (تحليل التقارير)
-  translation.ts        →  Gemini خاص + z-ai                                (الترجمة الطبية)
-VISION (/api/agents/vision) → Gemini Vision ← z-ai VLM — صور أدوية/تقارير بإشعار تحقق إلزامي
-MONITORING (#/ai-monitoring) → إحصاءات لكل وكيل + مصفوفة الصلاحيات + سلاسل المزودين
+AI GATEWAY (/api/agents) — safety router ← intent ← context (authorized tools) ← specialist ← output validation
+  medical-model.ts      →  Groq gpt-oss-120b   +  own Gemini  +  z-ai   (medical knowledge)
+  emergency-model.ts    →  Groq gpt-oss-120b   +  own Gemini  +  z-ai   (emergency triage — guaranteed escalation + severity grading)
+  medicine-model.ts     →  Groq gpt-oss-120b   +  own Gemini  +  z-ai   (medication specialist)
+  personal-health-model →  Groq gpt-oss-120b   +  own Gemini  +  z-ai   (personal health — the only agent with data tools)
+  report-analysis.ts    →  Groq gpt-oss-120b   +  z-ai                    (report analysis)
+  translation.ts        →  own Gemini + z-ai                              (medical translation)
+VISION (/api/agents/vision) → Gemini Vision ← z-ai VLM — medication/report images with a mandatory verification notice
+MONITORING (#/ai-monitoring) → per-agent statistics + permission matrix + provider chains
 ```
 
-كل وكيل: خيوط محادثة مخزنة في قاعدة البيانات لكل (مستخدم، وكيل، محادثة) مع ملخص متجدد + الموجه
-الحرفي من المستودع الأصلي + سلسلة مزودين متدرجة قابلة للتغيير من `.env` فقط
-(MEDICAL_PRIMARY=... VISION_PRIMARY=...). **أخصائي الأدوية يعرف أدوية المتصل المضافة دائماً**
-(قائمة أدويته + شاشة تفاعلاتها تُحقن في سياقه على كل سؤال — بوابةً ومساراً مباشراً).
-الأدوات مفوّضة في الكود (لا prompt فقط): كل وكيل يرى فقط البيانات المسموح له بها.
-التفاصيل الكاملة: [`docs/AI_ARCHITECTURE.md`](docs/AI_ARCHITECTURE.md).
+Each agent has conversation threads stored in the database per (user, agent, conversation) with a rolling
+summary, the verbatim prompt from the original repository, and a tiered provider chain that is configurable
+from `.env` only (`MEDICAL_PRIMARY=...`, `VISION_PRIMARY=...`). **The medication specialist always knows the
+caller's medications** (their medication list and interaction screen are injected into its context on every
+question — via the gateway and the direct route). Tools are enforced in code (not just in the prompt): each
+agent sees only the data it is allowed to see.
+Full details: [`docs/AI_ARCHITECTURE.md`](docs/AI_ARCHITECTURE.md).
 
-## بنية الأمان (تدقيق 2026-09-29 الشامل)
+## Security architecture (full audit, 2026-09-29)
 
-> نفَّذت المنصة تدقيقًا أمنيًا شاملًا (73 ملاحظة) بتاريخ 2026-09-29؛ أبرز الضمانات القائمة الآن:
+> The platform underwent a comprehensive security audit (73 findings) on 2026-09-29. Key guarantees now in place:
 
-- **هوية حتمية من جهة الخادم على كل مسار محمي:** `requireSelf` غير متزامن يتحقق تسلسليًا: توكن صالح ←
-  الحساب موجود ← الحالة `active` ← مطابقة `tokenVersion` ← فحص BOLA على المعرّف المطلوب.
-- **حدود المعدل:** نوافذ منزلقة على login/signup/verify-otp/resend-otp/google (429 + `Retry-After`)،
-  وتبريد 60 ثانية لكل حساب على إعادة إرسال OTP.
-- **غرف Socket من هوية موثقة فقط:** التوكن يُقبل من `handshake.auth` حصرًا (توكن query يُرفض)،
-  والغرف تُشتق من هوية التوكن المتحقق منه — انضمام مستخدم لغرفة غيره يُرفض ويُسجَّل.
-- **رموز النسخ الاحتياطي:** crypto-random وتُخزَّن بصيغة SHA-256 (النص الصريح يُعرض مرة واحدة).
-- **عقد أخطاء مضبوط:** أخطاء 500 في المصادقة تعيد `INTERNAL_ERROR` موحّدًا — لا نص استثناء خام أبدًا.
-- **إصدار الجلسات + الخروج:** رفع `User.tokenVersion` يُبطل كل توكنات الحساب؛
-  `POST /api/auth/logout` يمسح الكوكي دائمًا ومع `{allDevices:true}` يُبطل كل الجلسات فورًا.
-- **رفع التقارير:** فحص magic bytes لـ PDF + حد معدل لكل مستخدم (10/10 دقائق) + لفّ محتوى المستند
-  كـ UNTRUSTED DATA ضد حقن الأوامر.
+- **Deterministic server-side identity on every protected route:** an async `requireSelf` checks in order: valid
+  token → account exists → status is `active` → `tokenVersion` matches → BOLA check on the requested identifier.
+- **Rate limits:** sliding windows on login/signup/verify-otp/resend-otp/google (429 + `Retry-After`),
+  plus a 60-second per-account cooldown on OTP resend.
+- **Socket rooms from verified identity only:** the token is accepted from `handshake.auth` exclusively
+  (query tokens are rejected); rooms are derived from the verified token identity — a user joining another
+  user's room is rejected and logged.
+- **Backup codes:** crypto-random and stored as SHA-256 (the plaintext is shown once).
+- **Controlled error contract:** authentication 500s return a uniform `INTERNAL_ERROR` — raw exception text is never exposed.
+- **Session versioning + logout:** bumping `User.tokenVersion` invalidates all of an account's tokens;
+  `POST /api/auth/logout` always clears the cookie and, with `{allDevices:true}`, revokes every session immediately.
+- **Report upload:** PDF magic-byte check + per-user rate limit (10 per 10 minutes) + document content wrapped
+  as UNTRUSTED DATA against prompt injection.
 
-## سجل النماذج (Model Registry)
+## Model registry
 
-كل وكيل يحتفظ بمثيلاته الخاصة (الفصل محفوظ) وبنموذج قابل للتجاوز من `.env` **لكل وكيل على حدة**
-(الافتراضي بعد استبدال النماذج المتوقفة llama-3.3-70b / llama-4-scout في 2026-09-29):
+Every agent keeps its own instances (separation preserved) and a model that can be overridden from `.env`
+**per agent** (defaults after replacing the retired llama-3.3-70b / llama-4-scout models on 2026-09-29):
 
-| الوكيل | نموذج الإجابة (الافتراضي، قابل للتجاوز من `.env`) |
-|--------|------------------------------------------------------|
-| المعرفة الطبية | `MEDICAL_CHAT_MODEL` (سلسلة `MEDICAL_*`) |
-| أخصائي الأدوية | `MEDICATION_CHAT_MODEL` (سلسلة `MEDICATION_*`) |
-| الصحة الشخصية | `PERSONAL_CHAT_MODEL` (سلسلة `PERSONAL_*`) |
-| فرز الطوارئ | `EMERGENCY_CHAT_MODEL` (سلسلة `EMERGENCY_*`) |
-| تحليل التقارير | `REPORT_CHAT_MODEL` (سلسلة صلبة خاصة groq→zai) |
-| البوابة (providers.ts) | `GROQ_CHAT_MODEL` |
+| Agent | Answer model (default, overridable from `.env`) |
+|-------|-------------------------------------------------|
+| Medical knowledge | `MEDICAL_CHAT_MODEL` (`MEDICAL_*` chain) |
+| Medication specialist | `MEDICATION_CHAT_MODEL` (`MEDICATION_*` chain) |
+| Personal health | `PERSONAL_CHAT_MODEL` (`PERSONAL_*` chain) |
+| Emergency triage | `EMERGENCY_CHAT_MODEL` (`EMERGENCY_*` chain) |
+| Report analysis | `REPORT_CHAT_MODEL` (dedicated hard chain groq→zai) |
+| Gateway (providers.ts) | `GROQ_CHAT_MODEL` |
 
-> متغيرات `*_SUMMARY_MODEL` أزيلت في v5 (الملخص المتجدد صار دمجاً نصياً بلا LLM).
+> `*_SUMMARY_MODEL` variables were removed in v5 (the rolling summary is now a text merge with no LLM).
 
-- **سلسلة المزودين** groq ← gemini ← z-ai لكل وكيل: مهلة لكل استدعاء (45ث نص / 90ث رؤية) + قاطع دائرة
-  داخل الذاكرة (3 إخفاقات ← 60ث مفتوح ← فحص نصف مفتوح) تُعرض حالته في `/api/ai-monitoring` (providerHealth).
-- **تسمية صادقة:** بوابة z-ai تقدّم GLM من Zhipu AI (تُسمّى بحقيقتها في كل مكان).
-- **ملاحظة الشبكة:** شبكة بيئة المعاينة محجوبة جغرافيًا من Groq/Gemini → تجيب السلسلة عبر z-ai؛
-  عند النشر من شبكة مدعومة تعود Groq/Gemini تلقائيًا بلا أي تغيير كود.
+- **Provider chain** groq → gemini → z-ai per agent: per-call timeout (45 s text / 90 s vision) plus an in-memory
+  circuit breaker (3 failures → open for 60 s → half-open probe), with its state exposed at `/api/ai-monitoring` (providerHealth).
+- **Honest naming:** the z-ai gateway serves GLM from Zhipu AI (and is named as such everywhere).
+- **Network note:** the preview environment's network is geo-blocked from Groq/Gemini, so the chain answers via z-ai;
+  when deployed from a supported network, Groq/Gemini take over automatically with no code change.
 
-## التشغيل
+## Running locally
 
 ```bash
-bun install          # التبعيات
-bun run db:push      # مخطط Prisma → SQLite
-bun run dev          # الخادم (منفذ 3000)
-# + خدمة Socket:
-cd mini-services/socket-service && bun run dev   # (3003 + جسر 3004)
+cp .env.example .env # then fill in your own values
+bun install          # dependencies
+bun run db:push      # Prisma schema → SQLite
+bun run dev          # server (port 3000)
+# + Socket service:
+cd mini-services/socket-service && bun run dev   # (3003 + bridge 3004)
 ```
 
-**حساب العرض:** `demo@medsync.ai` / `demo1234` (التلميح ظاهر في شاشة الدخول).
-> حساب عرض لبيئة المعاينة (Sandbox demo fixture) — بيانات تخليقية فقط؛ يُدوَّر قبل أي نشر حقيقي.
+**Demo account:** `demo@medsync.ai` / `demo1234` (hint shown on the login screen).
+> A sandbox demo fixture — synthetic data only; rotate it before any real deployment.
 
-## إعادة التحقق بنفسك
+## Verify it yourself
 
 ```bash
-bun run scripts/verify-data.ts      # سلامة البيانات — 9 فحوص (يجب: ALL PASSED)
-bun run scripts/test-security.ts    # أمن المصادقة/الجلسات/السوكيت — 23 فحصًا (يجب: 23/23، منها رفض جسر /emit غير الموقّع)
-bun run scripts/test-full-site.ts   # حزمة الموقع الكاملة — 56 فحصًا عبر كل مسارات API (يجب: 56/56؛ ذاتية التنظيف — تنظّف أيضاً سجلات RiskPrediction/SmartReminder)
-bun run scripts/test-med-crud.ts    # دورة حياة الدواء — حذف/تعديل/قائمة كاملة + BOLA + درع التفاعلات (يجب: 40/40)
-bun run scripts/test-agent-suite.ts # بوابة AI — 25 فحص توجيه/سلامة/أمن (يجب: 25/25)
-bun run scripts/state-snapshot.ts   # حالة المنصة الحية
-bun run scripts/provider-probe.ts   # حقيقة مزود الـ LLM الفعلي
+bun run scripts/verify-data.ts      # data integrity — 9 checks (must be: ALL PASSED)
+bun run scripts/test-security.ts    # auth/session/socket security — 23 checks (must be 23/23, including rejection of an unsigned /emit bridge call)
+bun run scripts/test-full-site.ts   # full-site suite — 56 checks across all API routes (must be 56/56; self-cleaning, also cleans RiskPrediction/SmartReminder records)
+bun run scripts/test-med-crud.ts    # medication lifecycle — delete/edit/full list + BOLA + interaction shield (must be 40/40)
+bun run scripts/test-agent-suite.ts # AI gateway — 25 routing/safety/security checks (must be 25/25)
+bun run scripts/state-snapshot.ts   # live platform state
+bun run scripts/provider-probe.ts   # which LLM provider is actually answering
 bun run lint                        # 0 errors / 0 warnings
 ```
 
-> ملاحظة: `test-agents.ts` (الوكلاء الستة + الترجمة) غطّته حزمة `test-full-site.ts` الأحدث والأشمل.
+> Note: `test-agents.ts` (the six agents + translation) is covered by the newer, broader `test-full-site.ts` suite.
 >
-> **آخر تحقق: 2026-10-01 (المراجعة الشاملة الكبرى — 20 وكيل مراجعة × 100 مهمة):**
-> أمن 23/23 · بوابة AI 25/25 · سلامة البيانات 9/9 ALL PASSED · دورة حياة الدواء 40/40 · المحادثات 44/44 ·
-> وحدات المحادثات+الميزانية 32/32 · البحث 48/48 · توطين الإشعارات 48/48 · المسار الذهبي 34/34 ·
-> الموقع كامل 56/56 · lint 0/0 — **المجموع 350 فحصاً كلها خضراء**، إضافة إلى تحقق حي أن أخصائي
-> الأدوية يذكر أدوية المتصل في أسئلة عامة (عربي/إنجليزي، بوابة ومسار مباشر).
+> **Last verification: 2026-10-01 (the major full review — 20 review agents × 100 tasks):**
+> security 23/23 · AI gateway 25/25 · data integrity 9/9 ALL PASSED · medication lifecycle 40/40 · conversations 44/44 ·
+> conversation+budget units 32/32 · search 48/48 · notification localization 48/48 · golden path 34/34 ·
+> full site 56/56 · lint 0/0 — **350 checks in total, all green**, plus live verification that the medication
+> specialist mentions the caller's medications in general questions (Arabic/English, gateway and direct route).
 
-## الوثائق (docs/)
+## Documentation (docs/)
 
-| الوثيقة | المحتوى |
-|---------|---------|
-| [FULL_RECORD.md](docs/FULL_RECORD.md) | **السجل الكامل** — كل مهمة وإضافة وحقل ونقطة نهاية (الوثائق التاريخية مدمجة فيه) |
-| [AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md) | **معمارية الوكلاء المتخصصين** — البوابة، السلامة، الأدوات، الرؤية، المراقبة |
-| [SECURITY_ASSESSMENT.md](docs/SECURITY_ASSESSMENT.md) | تقييم أمني صادق (المصادقة، BOLA، الفجوات المعلنة) |
-| [API.md](docs/API.md) | مرجع نقاط النهاية + عقد المصادقة |
-| [ML_DESIGN.md](docs/ML_DESIGN.md) | تصميم خط ML (الخصائص، التسمية الأمينة، الترقية بالأدلة) |
-| [STUDY_PROTOCOL.md](docs/STUDY_PROTOCOL.md) | بروتوكول الدراسة (أذرع، أحجام، أخلاقيات) |
-| [OFFLINE_SYNC.md](docs/OFFLINE_SYNC.md) | المزامنة دون اتصال + سياسة التعارض |
-| [ADHERENCE_PLATFORM.md](docs/ADHERENCE_PLATFORM.md) | بنية منصة الالتزام end-to-end |
-| [LIMITATIONS.md](docs/LIMITATIONS.md) · [VERIFICATION_REPORT.md](docs/VERIFICATION_REPORT.md) · [DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) | الحدود المعلنة · تقرير التحقق · دليل النشر |
+| Document | Contents |
+|----------|----------|
+| [AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md) | **Specialist agent architecture** — gateway, safety, tools, vision, monitoring |
+| [SECURITY_ASSESSMENT.md](docs/SECURITY_ASSESSMENT.md) | Honest security assessment (authentication, BOLA, declared gaps) |
+| [API.md](docs/API.md) | Endpoint reference + authentication contract |
+| [ML_DESIGN.md](docs/ML_DESIGN.md) | ML pipeline design (features, honest labeling, evidence-based promotion) |
+| [STUDY_PROTOCOL.md](docs/STUDY_PROTOCOL.md) | Study protocol (arms, sample sizes, ethics) |
+| [OFFLINE_SYNC.md](docs/OFFLINE_SYNC.md) | Offline sync + conflict policy |
+| [ADHERENCE_PLATFORM.md](docs/ADHERENCE_PLATFORM.md) | End-to-end adherence platform architecture |
+| [LIMITATIONS.md](docs/LIMITATIONS.md) · [DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) | Declared limits · deployment guide |
 
-## عقد الصدق البحثي
+## Research honesty contract
 
-- النتائج على **بيانات تخليقية** (12 شخصية سلوكية) لا تُقدَّم أبداً كدليل سريري.
-- المصطلح الأمين: "not confirmed" وليس "non-adherence" (قد يكون المريض أخذ الجرعة ولم يسجلها).
-- التحقق **زمني فقط**؛ الدقة accuracy وحدها لا تُستخدم للحكم أبداً.
-- كل مزود AI يُسمّى بحقيقته (بوابة z-ai = GLM من Zhipu AI، وليست Gemini).
-- كل مرحلة "منجزة" مدعومة بسجل قابل للتتبع؛ وكل مؤجل مذكور سببه.
+- Results are on **synthetic data** (12 behavioral personas) and are never presented as clinical evidence.
+- The honest term is "not confirmed", not "non-adherence" (the patient may have taken the dose without logging it).
+- Validation is **temporal only**; accuracy alone is never used for judgment.
+- Every AI provider is named for what it really is (the z-ai gateway = GLM from Zhipu AI, not Gemini).
+- Every "completed" phase is backed by a traceable record; every deferral states its reason.
 
 ---
 
-**المساهمة البحثية:** RQ1 (تنبؤ الخطر — ROC-AUC 0.6926 بتحقق زمني) · RQ2 (أثر التدخل — المنصة
-جاهزة، تنتظر الموافقة الأخلاقية) · RQ3 (الموثوقية — مقيسة فعلياً) · RQ4 (الإتاحة متعددة اللغات —
-متحقق منها حياً بالعربية RTL).
+**Research contribution:** RQ1 (risk prediction — ROC-AUC 0.6926 with temporal validation) · RQ2 (intervention
+effect — platform ready, awaiting ethics approval) · RQ3 (reliability — measured in practice) · RQ4 (multilingual
+accessibility — verified live in Arabic RTL).
