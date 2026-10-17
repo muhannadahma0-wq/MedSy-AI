@@ -5,6 +5,9 @@ import type { Locale } from "@/lib/i18n";
 import type { ReportAnalysis } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const id = req.nextUrl.searchParams.get("id");
   if (id) {
     const report = await db.report.findUnique({ where: { id } });
@@ -31,6 +34,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   try {
     const body = (await req.json()) as { title?: string; content?: string; locale?: Locale };
     const title = body.title?.trim();
@@ -111,6 +117,9 @@ Rules:
 }
 
 export async function DELETE(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
   try {
