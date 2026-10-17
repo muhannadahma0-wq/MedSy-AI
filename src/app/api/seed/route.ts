@@ -101,6 +101,10 @@ const DEMO_MEDS = [
 ];
 
 export async function POST() {
+  // This development seed deletes existing rows; never expose it in production.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const rng = mulberry32(20250112);
 
   // wipe
